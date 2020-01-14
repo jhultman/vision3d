@@ -1,3 +1,4 @@
 Pointnet2.PyTorch/*
 spconv/*
+setpath.sh
 **/*.bin

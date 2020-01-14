@@ -1,6 +1,8 @@
 Install dependencies:
 - CUDA 9.0+
 - torch 1.0
+- Conda (recommended)
+- Ubuntu 18.04 (recommended)
 
 Install Pointnet2:
 ```

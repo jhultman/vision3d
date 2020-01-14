@@ -3,9 +3,6 @@ import torch
 from torch import nn
 
 import spconv
-import sys
-sys.path.append('/home/jhultman/Projects/tmp/PV-RCNN/Pointnet2.PyTorch/')
-
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_utils import furthest_point_sample
 
@@ -50,6 +47,8 @@ class CNN_3D(nn.Module):
         Convert integer voxel indices to metric coordinates.
         voxel_size: length-3 tensor describing size of atomic voxel, accounting for stride.
         voxel_offset: length-3 tensor describing coordinate offset of voxel grid.
+
+        TODO: Ensure ijk indices consistent with xyz metric coordinates.
         """
         feature, index = volume.features, volume.indices
         voxel_size = self.base_voxel_size * (2 ** stride)
@@ -76,6 +75,9 @@ class PV_RCNN(nn.Module):
     """
 
     def __init__(self, cfg):
+        """
+        TODO: Read Pointnet params from config object.
+        """
         super(PV_RCNN, self).__init__()
         self.pnet = PointnetSAModuleMSG(
             npoint=-1, radii=[0.1, 0.5], nsamples=[16, 32],
@@ -92,7 +94,10 @@ class PV_RCNN(nn.Module):
         self.cfg = cfg
 
     def voxelize(self, points):
-        """Compute sparse voxel grid."""
+        """
+        Compute sparse voxel grid.
+        TODO: Ensure feature vectorization is correct.
+        """
         features, coordinates, voxel_population = self.voxel_generator.generate(points)
         coordinates = np.pad(coordinates, ((0, 0), (1, 0)), mode="constant", constant_values=0)
         from_numpy = lambda x: torch.from_numpy(x).cuda()
@@ -102,6 +107,10 @@ class PV_RCNN(nn.Module):
         return points, features, coordinates, voxel_population
 
     def forward(self, points):
+        """
+        TODO: Document intermediate tensor shapes.
+        TODO: Use all feature volume strides of 3D CNN output.
+        """
         points, features, coordinates, voxel_population = self.voxelize(points)
         out = self.cnn(features, coordinates, batch_size=1)
 
