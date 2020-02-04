@@ -115,7 +115,7 @@ class PV_RCNN(nn.Module):
 def main():
     cfg = PvrcnnConfig()
     net = PV_RCNN(cfg).cuda()
-    points = np.fromfile(cfg.sample_fpath, dtype=np.float32).reshape(-1, cfg.C_in)
+    points = np.random.uniform(0, 50, size=(120000, cfg.C_in)).astype(np.float32)
     out = net(points)
 
 
