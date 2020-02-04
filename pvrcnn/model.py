@@ -7,7 +7,7 @@ from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_utils import furthest_point_sample
 
 from pvrcnn.config import PvrcnnConfig
-from pvrcnn.cnn_3d import CNN_3D
+from pvrcnn.cnn import CNN_3D
 
 
 class PV_RCNN(nn.Module):
@@ -25,7 +25,7 @@ class PV_RCNN(nn.Module):
         self.cfg = cfg
 
     def build_voxel_generator(self, cfg):
-        """Voxel-grid is reversed XYZ -> ZYX and padded in Z-axis. """
+        """Voxel-grid is reversed XYZ -> ZYX and padded in Z-axis."""
         voxel_generator = spconv.utils.VoxelGenerator(
             voxel_size=cfg.voxel_size,
             point_cloud_range=cfg.grid_bounds,

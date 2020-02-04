@@ -1,4 +1,11 @@
 Pointnet2.PyTorch/*
 spconv/*
+
 setpath.sh
-**/*.bin
+*.bin
+
+build/*
+dist/*
+pvrcnn.egg-info/*
+
+notebooks/*
