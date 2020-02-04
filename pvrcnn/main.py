@@ -8,6 +8,7 @@ from pointnet2.pointnet2_utils import furthest_point_sample
 
 
 class PvrcnnConfig:
+
     C_in = 4
     n_keypoints = 2048
     strides = [1, 2, 4, 8]
@@ -39,13 +40,15 @@ class CNN_3D(nn.Module):
         block_2: [800, 640, 21]   -> [400, 320, 11]
         block_3: [400, 320, 11]   -> [200, 160, 6]
 
+    Input points within voxels are concatenated along channels.
     Returns feature volumes strided 1x, 2x, 4x, 8x.
     """
 
     def __init__(self, grid_shape, cfg):
         super(CNN_3D, self).__init__()
+        C = cfg.C_in * cfg.max_num_points
         self.blocks = spconv.SparseSequential(
-            spconv.SparseConv3d(cfg.C_in, 16, 3, 1, padding=0, bias=False),
+            spconv.SparseConv3d(C, 16, 3, 1, padding=0, bias=False),
             spconv.SparseConv3d(16, 16, 3, 2, padding=1, bias=False),
             spconv.SparseConv3d(16, 32, 3, 2, padding=1, bias=False),
             spconv.SparseConv3d(32, 64, 3, 2, padding=1, bias=False),
@@ -66,7 +69,7 @@ class CNN_3D(nn.Module):
         voxel_size = self.base_voxel_size * (2 ** stride)
         xyz = index[..., 1:].float() * voxel_size
         xyz = (xyz + self.voxel_offset)
-        return feature, xyz
+        return xyz, feature
 
     def forward(self, features, coordinates, batch_size):
         x0 = spconv.SparseConvTensor(
@@ -121,16 +124,33 @@ class PV_RCNN(nn.Module):
         from_numpy = lambda x: torch.from_numpy(x).cuda()
         points, features, coordinates, voxel_population = map(
             from_numpy, (points, features, coordinates, voxel_population))
-        features = features.view(-1, self.cfg.C_in)
+        features = features.view(-1, self.cfg.max_num_points * self.cfg.C_in)
         return points, features, coordinates, voxel_population
 
     def sample_keypoints(self, xyz, point_features):
-        """Use furthest point sampling to select keypoints from raw pointcloud."""
+        """
+        Sample keypoints from raw pointcloud. Assumes unit batch size.
+        :xyz FloatTensor of shape (N, 3).
+        :point_features FloatTensor of shape (N, C).
+        :return tuple of \
+            FloatTensor of shape (n_keypoints, 3),
+            FloatTensor of shape (n_keypoints, C)
+        """
         xyz = xyz.unsqueeze(0).contiguous()
         indices = furthest_point_sample(xyz, self.cfg.n_keypoints).squeeze(0).long()
         keypoint_xyz = xyz[:, indices].squeeze(0)
         keypoint_features = point_features[indices]
         return keypoint_xyz, keypoint_features
+
+    def pnet_forward(self, cnn_out, keypoint_xyz):
+        pnet_out = []
+        for i in range(len(self.cfg.strides)):
+            voxel_coords, voxel_features = cnn_out[i]
+            voxel_coords = voxel_coords.unsqueeze(0).contiguous()
+            voxel_features = voxel_features.t().unsqueeze(0).contiguous()
+            _, out = self.pnets[i](voxel_coords, voxel_features, keypoint_xyz)
+            pnet_out += [out]
+        return pnet_out
 
     def forward(self, points):
         """
@@ -138,17 +158,13 @@ class PV_RCNN(nn.Module):
         TODO: Concatenate features from different strides.
         """
         points, features, coordinates, voxel_population = self.voxelize(points)
-        out = self.cnn(features, coordinates, batch_size=1)
-        xyz, point_features = torch.split(points, [3, 1], dim=-1)
-        keypoints_xyz, keypoints_features = self.sample_keypoints(xyz, point_features)
-        out = [(point_features, xyz)] + out
-        for i in range(len(self.cfg.strides)):
-            voxel_features_i, voxel_coords_i = out[i]
-            voxel_coords_i = voxel_coords_i.unsqueeze(0).contiguous()
-            voxel_features_i = voxel_features_i.unsqueeze(0).permute(0, 2, 1).contiguous()
-            keypoints_xyz = keypoints_xyz.unsqueeze(0).contiguous()
-            _, out = self.pnets[i](voxel_coords_i, voxel_features_i, keypoints_xyz)
-        return out
+        cnn_out = self.cnn(features, coordinates, batch_size=1)
+        point_xyz, point_features = torch.split(points, [3, 1], dim=-1)
+        cnn_out = [(point_xyz, point_features)] + cnn_out
+        keypoint_xyz, keypoint_features = self.sample_keypoints(point_xyz, point_features)
+        keypoint_xyz = keypoint_xyz.unsqueeze(0).contiguous()
+        pnet_out = self.pnet_forward(cnn_out, keypoint_xyz)
+        return pnet_out
 
 
 def main():
