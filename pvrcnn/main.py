@@ -12,33 +12,39 @@ class PvrcnnConfig:
     C_in = 4
     n_keypoints = 2048
     strides = [1, 2, 4, 8]
-    max_num_points = 5
+    max_num_points = 3
     max_voxels = 40000
     voxel_size = [0.05, 0.05, 0.1]
     grid_bounds = [0, -40, -3, 64, 40, 1]
     sample_fpath = './sample.bin'
 
-    # PointNet params
+    # PointSetAbstraction parameters
     radii = [
-        [0.4, 0.8], [0.4, 0.8], [0.8, 1.2], [1.2, 2.4], [2.4, 4.8]
+        [0.4, 0.8],
+        [0.4, 0.8],
+        [0.8, 1.2],
+        [1.2, 2.4],
+        [2.4, 4.8]
+    ]
+    mlps = [
+        [[1, 16, 32], [1, 16, 32]],
+        [[16, 16, 32], [16, 16, 32]],
+        [[16, 32, 64], [16, 32, 64]],
+        [[32, 64, 64], [32, 64, 64]],
+        [[64, 64, 128], [64, 64, 128]]
     ]
     nsamples = [[16, 32]] * len(radii)
-    mlps = [
-        [[16, 16, 32], [32, 32, 64]],
-        [[64, 64, 128], [64, 96, 128]],
-        [[128, 196, 256], [128, 196, 256]],
-        [[256, 256, 512], [256, 384, 512]]
-    ]
+    assert len(radii) == len(mlps) == len(nsamples)
 
 
 class CNN_3D(nn.Module):
     """
     Simple placeholder sparse 3D CNN with four blocks:
 
-        block_0: [1600, 1280, 41] -> [1600, 1280, 41]
-        block_1: [1600, 1280, 41] -> [800, 640, 21]
-        block_2: [800, 640, 21]   -> [400, 320, 11]
-        block_3: [400, 320, 11]   -> [200, 160, 6]
+        block_0: [12, 1600, 1280, 41] -> [16, 1600, 1280, 41]
+        block_1: [16, 1600, 1280, 41] -> [16, 800, 640, 21]
+        block_2: [16, 800, 640, 21]   -> [32, 400, 320, 11]
+        block_3: [32, 400, 320, 11]   -> [64, 200, 160, 6]
 
     Input points within voxels are concatenated along channels.
     Returns feature volumes strided 1x, 2x, 4x, 8x.
@@ -106,11 +112,12 @@ class PV_RCNN(nn.Module):
         self.cfg = cfg
 
     def build_pointnets(self, cfg):
+        """Copies channel list because PointNet modifies in-place."""
         pnets = []
-        for i in range(len(cfg.strides)):
+        for i in range(len(cfg.mlps)):
             pnets += [PointnetSAModuleMSG(
                 npoint=-1, radii=cfg.radii[i], nsamples=cfg.nsamples[i],
-                mlps=cfg.mlps[i], use_xyz=True,
+                mlps=cfg.mlps[i].copy(), use_xyz=True,
             )]
         return nn.Sequential(*pnets)
 
@@ -144,18 +151,18 @@ class PV_RCNN(nn.Module):
 
     def pnet_forward(self, cnn_out, keypoint_xyz):
         pnet_out = []
-        for i in range(len(self.cfg.strides)):
+        for i, pnet in enumerate(self.pnets):
             voxel_coords, voxel_features = cnn_out[i]
             voxel_coords = voxel_coords.unsqueeze(0).contiguous()
             voxel_features = voxel_features.t().unsqueeze(0).contiguous()
-            _, out = self.pnets[i](voxel_coords, voxel_features, keypoint_xyz)
+            out = pnet(voxel_coords, voxel_features, keypoint_xyz)[1]
             pnet_out += [out]
         return pnet_out
 
     def forward(self, points):
         """
         TODO: Document intermediate tensor shapes.
-        TODO: Concatenate features from different strides.
+        TODO: Add BEV point aggregation.
         """
         points, features, coordinates, voxel_population = self.voxelize(points)
         cnn_out = self.cnn(features, coordinates, batch_size=1)
