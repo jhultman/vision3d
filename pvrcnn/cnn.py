@@ -44,7 +44,7 @@ class CNN_3D(nn.Module):
         """
         feature = volume.features
         index = torch.flip(volume.indices, (1,))
-        voxel_size = self.base_voxel_size * (2 ** stride)
+        voxel_size = self.base_voxel_size * stride
         xyz = index[..., 0:3].float() * voxel_size
         xyz = (xyz + self.voxel_offset)
         return xyz, feature
@@ -57,5 +57,5 @@ class CNN_3D(nn.Module):
         x2 = self.blocks[1](x1)
         x3 = self.blocks[2](x2)
         x4 = self.blocks[3](x3)
-        x = [self.to_global(i, x) for i, x in enumerate([x1, x2, x3, x4])] + [x4]
+        x = [self.to_global(2 ** i, x) for i, x in enumerate([x1, x2, x3, x4])] + [x4]
         return x
