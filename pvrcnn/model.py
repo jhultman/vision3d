@@ -61,20 +61,16 @@ class PV_RCNN(nn.Module):
         features = features.view(-1, self.cfg.max_num_points * self.cfg.C_in)
         return points, features, coordinates
 
-    def sample_keypoints(self, xyz, point_features):
+    def sample_keypoints(self, xyz):
         """
         Sample keypoints from raw pointcloud. Assumes unit batch size.
         :xyz FloatTensor of shape (N, 3).
-        :point_features FloatTensor of shape (N, C).
-        :return tuple of \
-            FloatTensor of shape (n_keypoints, 3),
-            FloatTensor of shape (n_keypoints, C)
+        :return FloatTensor of shape (n_keypoints, 3),
         """
         xyz = xyz.unsqueeze(0).contiguous()
-        indices = furthest_point_sample(xyz, self.cfg.n_keypoints).squeeze(0).long()
-        keypoint_xyz = xyz[:, indices].squeeze(0)
-        keypoint_features = point_features[indices]
-        return keypoint_xyz, keypoint_features
+        indices = furthest_point_sample(xyz, self.cfg.n_keypoints)
+        keypoint_xyz = xyz[:, indices.squeeze(0).long()].squeeze(0)
+        return keypoint_xyz
 
     def pnet_forward(self, cnn_out, keypoint_xyz):
         """
@@ -105,7 +101,10 @@ class PV_RCNN(nn.Module):
         return indices
 
     def bev_forward(self, volume, keypoint_xyz):
-        """Project 3D voxel grid to XY-plane and gather keypoint features."""
+        """
+        Project 3D voxel grid to XY-plane and gather
+        BEV features using bilinear interpolation.
+        """
         volume = volume.dense()
         N, C, D, H, W = volume.shape
         volume = volume.view(N, C * D, H, W)
@@ -121,11 +120,12 @@ class PV_RCNN(nn.Module):
         cnn_out = self.cnn(features, coordinates, batch_size=1)
         point_xyz, point_features = torch.split(points, [3, 1], dim=-1)
         cnn_out = [(point_xyz, point_features)] + cnn_out
-        keypoint_xyz, keypoint_features = self.sample_keypoints(point_xyz, point_features)
+        keypoint_xyz = self.sample_keypoints(point_xyz)
         keypoint_xyz = keypoint_xyz.unsqueeze(0).contiguous()
         pnet_out = self.pnet_forward(cnn_out, keypoint_xyz)
         bev_out = self.bev_forward(cnn_out[-1], keypoint_xyz)
-        return pnet_out, bev_out
+        features = torch.cat(pnet_out + [bev_out], dim=1)
+        return features
 
 
 def main():
