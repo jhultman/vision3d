@@ -37,14 +37,15 @@ class CNN_3D(nn.Module):
     def to_global(self, stride, volume):
         """
         Convert integer voxel indices to metric coordinates.
+        Indices are reversed ijk -> kji to maintain correspondence with xyz.
+
         voxel_size: length-3 tensor describing size of atomic voxel, accounting for stride.
         voxel_offset: length-3 tensor describing coordinate offset of voxel grid.
-
-        TODO: Ensure ijk indices order consistent with xyz metric coordinates.
         """
-        feature, index = volume.features, volume.indices
+        feature = volume.features
+        index = torch.flip(volume.indices, (1,))
         voxel_size = self.base_voxel_size * (2 ** stride)
-        xyz = index[..., 1:].float() * voxel_size
+        xyz = index[..., 0:3].float() * voxel_size
         xyz = (xyz + self.voxel_offset)
         return xyz, feature
 
@@ -56,5 +57,5 @@ class CNN_3D(nn.Module):
         x2 = self.blocks[1](x1)
         x3 = self.blocks[2](x2)
         x4 = self.blocks[3](x3)
-        x = [self.to_global(i, x) for i, x in enumerate([x1, x2, x3, x4])]
+        x = [self.to_global(i, x) for i, x in enumerate([x1, x2, x3, x4])] + [x4]
         return x

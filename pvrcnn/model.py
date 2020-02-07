@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 import spconv
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
@@ -52,15 +53,13 @@ class PV_RCNN(nn.Module):
         :points_out FloatTensor of shape (Np, 4)
         :features FloatTensor of shape (Nv, 1)
         :coordinates IntTensor of shape (Nv, 4)
-        :voxel_population IntTensor of shape (Nv, 1)
         """
-        features, coordinates, voxel_population = self.voxel_generator.generate(points)
+        features, coordinates = self.voxel_generator.generate(points)[:2]
         coordinates = np.pad(coordinates, ((0, 0), (1, 0)), mode="constant", constant_values=0)
         from_numpy = lambda x: torch.from_numpy(x).cuda()
-        points, features, coordinates, voxel_population = map(
-            from_numpy, (points, features, coordinates, voxel_population))
+        points, features, coordinates = map(from_numpy, (points, features, coordinates))
         features = features.view(-1, self.cfg.max_num_points * self.cfg.C_in)
-        return points, features, coordinates, voxel_population
+        return points, features, coordinates
 
     def sample_keypoints(self, xyz, point_features):
         """
@@ -91,25 +90,34 @@ class PV_RCNN(nn.Module):
             pnet_out += [out]
         return pnet_out
 
-    def bev_forward(self, features, coordinates, keypoint_xyz):
+    def bev_forward(self, volume, keypoint_xyz):
         """
         Project 3D voxel grid to XY-plane and gather keypoint features.
         """
-        raise NotImplementedError
+        volume = volume.dense()
+        N, C, D, H, W = volume.shape
+        volume = volume.view(N, C * D, H, W)
+        image_dims = torch.cuda.FloatTensor([H - 1, W - 1])
+        indices = (keypoint_xyz[:, None, :, :2] - self.cnn.voxel_offset[:2])
+        indices = indices / (self.cnn.base_voxel_size[:2] * self.cfg.strides[-1])
+        indices = torch.min(torch.clamp(indices, 0), image_dims)
+        indices = (indices / (image_dims - 1))
+        features = F.grid_sample(volume, indices).squeeze(2)
+        return features
 
     def forward(self, points):
         """
         TODO: Document intermediate tensor shapes.
-        TODO: Add BEV point aggregation.
         """
-        points, features, coordinates, voxel_population = self.voxelize(points)
+        points, features, coordinates = self.voxelize(points)
         cnn_out = self.cnn(features, coordinates, batch_size=1)
         point_xyz, point_features = torch.split(points, [3, 1], dim=-1)
         cnn_out = [(point_xyz, point_features)] + cnn_out
         keypoint_xyz, keypoint_features = self.sample_keypoints(point_xyz, point_features)
         keypoint_xyz = keypoint_xyz.unsqueeze(0).contiguous()
         pnet_out = self.pnet_forward(cnn_out, keypoint_xyz)
-        return pnet_out
+        bev_out = self.bev_forward(cnn_out[-1], keypoint_xyz)
+        return pnet_out, bev_out
 
 
 def main():
