@@ -90,18 +90,26 @@ class PV_RCNN(nn.Module):
             pnet_out += [out]
         return pnet_out
 
+    def normalize_grid_sample_indices(self, indices, H, W):
+        """F.grid_sample expects normalized indices on (-1, +1)."""
+        image_dims = torch.cuda.FloatTensor([H - 1, W - 1])
+        indices = torch.min(torch.clamp(indices, 0), image_dims)
+        indices = 2 * (indices / (image_dims - 1)) - 1
+        return indices
+
+    def compute_bev_indices(self, keypoint_xyz, H, W):
+        """Convert xyz coordinates to fractional BEV indices."""
+        indices = (keypoint_xyz[:, None, :, :2] - self.cnn.voxel_offset[:2])
+        indices = indices / (self.cnn.base_voxel_size[:2] * self.cfg.strides[-1])
+        indices = self.normalize_grid_sample_indices(indices, H, W)
+        return indices
+
     def bev_forward(self, volume, keypoint_xyz):
-        """
-        Project 3D voxel grid to XY-plane and gather keypoint features.
-        """
+        """Project 3D voxel grid to XY-plane and gather keypoint features."""
         volume = volume.dense()
         N, C, D, H, W = volume.shape
         volume = volume.view(N, C * D, H, W)
-        image_dims = torch.cuda.FloatTensor([H - 1, W - 1])
-        indices = (keypoint_xyz[:, None, :, :2] - self.cnn.voxel_offset[:2])
-        indices = indices / (self.cnn.base_voxel_size[:2] * self.cfg.strides[-1])
-        indices = torch.min(torch.clamp(indices, 0), image_dims)
-        indices = (indices / (image_dims - 1))
+        indices = self.compute_bev_indices(keypoint_xyz, H, W)
         features = F.grid_sample(volume, indices).squeeze(2)
         return features
 
