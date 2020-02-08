@@ -6,16 +6,31 @@ class RoiGridPool(nn.Module):
 
     def __init__(self, cfg):
         super(RoiGridPool, self).__init__()
+        self.cfg = cfg
 
-    def rotate_grid_points(self, grid_points, theta):
+    def rotate_z(self, points, theta):
         """
-        Grid points were chosen according to axis-aligned 3D
-        bounding boxes. Here we rotate them using the proposal yaw angle.
+        Rotate points by theta around z-axis.
+        :points FloatTensor of shape (N, M, 3)
+        :theta FloatTensor of shape (N,)
+        :return FloatTensor of shape (N, M, 3)
         """
-        pass
+        xy, z = torch.split(points, [2, 1], dim=-1)
+        c, s = torch.cos(theta), torch.sin(theta)
+        R = torch.stack((c, -s, s, c), dim=-1).view(-1, 2, 2)
+        xyz = torch.cat((torch.einsum('ijk,imk->imj', R, xy), z), dim=-1)
+        return xyz
 
-    def sample_grid_points(self, proposals):
-        pass
+    def sample_gridpoints(self, proposals, m):
+        """
+        Generate gridpoints within object proposals.
+        :return FloatTensor of shape (nb, ng, 3)
+        """
+        n, device = proposals.shape[0], proposals.device
+        gridpoints = torch.rand((n, m, 3), device=device) * proposals.wlh[:, None,]
+        gridpoints = self.rotate_z(gridpoints, proposals.yaw) + proposals.center[:, None]
+        return gridpoints
 
-    def forward(self, keypoint_xyz, keypoint_features, proposals):
-        pass
+    def forward(self, proposals, keypoints):
+        gridpoints = self.sample_gridpoints(proposals, self.cfg.n_gridpoints)
+        return gridpoints
