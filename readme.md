@@ -1,10 +1,22 @@
 # PV-RCNN
 
-Pytorch implementation of the algorithm detailed in the
-paper PV-RCNN: Point-Voxel Feature Set Abstraction for 3D Object Detection
-available [here](https://arxiv.org/pdf/1912.13192).
+Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192): Point-Voxel Feature Set Abstraction for 3D Object Detection.
 
-# Installation
+![PV-RCNN](images/pvrcnn.png)
+
+## Features
+
+- [x] Keypoints sampling
+- [x] Voxel set abstraction (VSA)
+- [x] Extended VSA
+- [x] ROI grid pooling
+- [ ] Predicted keypoint weighting
+- [ ] Training code
+- [ ] IOU-Net
+
+
+## Installation
+
 Tested in environment:
 - CUDA 10.0
 - torch 1.0

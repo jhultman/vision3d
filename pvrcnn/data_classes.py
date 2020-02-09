@@ -1,14 +1,6 @@
 import torch
 
 
-class PointCloud:
-    """Convenience wrapper for 3D-pointcloud."""
-
-    def __init__(self, xyz, feature):
-        self.xyz = xyz
-        self.feature = feature
-
-
 class Boxes3D:
     """Convenience wrapper for 3D-boxes."""
 
