@@ -1,10 +1,9 @@
 class PvrcnnConfig:
 
     def __init__(self):
-        self.C_in = 4
+        self.raw_C_in = 4
         self.n_keypoints = 2048
         self.strides = [1, 2, 4, 8]
-        self.max_num_points = 3
         self.max_voxels = 40000
         self.voxel_size = [0.05, 0.05, 0.1]
         self.grid_bounds = [0, -40, -3, 64, 40, 1]
@@ -34,3 +33,10 @@ class PvrcnnConfig:
         self.gridpool_radii = [0.8, 1.6]
         self.gridpool_mlps = [[864, 128, 128], [864, 128, 128]]
         self.gridpool_reduction_mlps = [self.n_gridpoints * 256, 256, 256]
+
+        # Voxel feature extractor parameters
+        self.max_num_points = 3
+        self.vfe_C_in = 4
+
+        # Sparse CNN backbone parameters
+        self.cnn_C_in = 4

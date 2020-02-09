@@ -10,7 +10,7 @@ from pointnet2.pointnet2_utils import furthest_point_sample
 from pvrcnn.config import PvrcnnConfig
 from pvrcnn.data_classes import Boxes3D
 from pvrcnn.roi_grid_pool import RoiGridPool
-from pvrcnn.cnn import CNN_3D
+from pvrcnn.backbone import SparseCNN, VoxelFeatureExtractor
 
 
 class BEV_FeatureGatherer(nn.Module):
@@ -60,7 +60,7 @@ class PV_RCNN(nn.Module):
         self.pnets = self.build_pointnets(cfg)
         self.roi_grid_pool = RoiGridPool(cfg)
         self.voxel_generator, grid_shape = self.build_voxel_generator(cfg)
-        self.cnn = CNN_3D(grid_shape=grid_shape, cfg=cfg)
+        self.cnn = SparseCNN(grid_shape, C_in=cfg.cnn_C_in)
         self.bev_gatherer = self.build_bev_gatherer(cfg)
         self.cfg = cfg
 
@@ -148,13 +148,13 @@ class PV_RCNN(nn.Module):
         features = torch.cat(pnet_out + [bev_out], dim=1)
         proposals = Boxes3D(20 * torch.rand((25, 7)).cuda())
         pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
-        return features
+        return pooled_features
 
 
 def main():
     cfg = PvrcnnConfig()
     net = PV_RCNN(cfg).cuda()
-    points = np.random.uniform(0, 50, size=(120000, cfg.C_in)).astype(np.float32)
+    points = np.random.uniform(0, 50, size=(120000, cfg.raw_C_in)).astype(np.float32)
     out = net(points)
 
 
