@@ -53,38 +53,39 @@ class VoxelFeatureExtractor(nn.Module):
 
 class SparseCNN(nn.Module):
     """
-    Based on SECOND SpMiddleFHD.
+    Based on SECOND SpMiddleFHD. Returns feature volumes strided 1x, 2x, 4x, 8x.
 
-        [1600, 1200, 41] -> [800, 600, 21]
-        [800, 600, 21]   -> [400, 300, 11]
-        [400, 300, 11]   -> [200, 150, 5]
-        [200, 150, 5]    -> [200, 150, 2]
+        block_1: [ 4, 1600, 1280, 41] -> [32, 800, 640, 21]
+        block_2: [32,  800,  640, 21] -> [64, 400, 320, 11]
+        block_3: [64,  400,  320, 11] -> [64, 200, 160,  5]
+        block_4: [64,  400,  320,  5] -> [64, 200, 160,  2]
     """
 
     def __init__(self, grid_shape, cfg):
+        """:grid_shape voxel grid dimensions in ZYX order."""
         super(SparseCNN, self).__init__()
         self.grid_shape = grid_shape
         self.cfg = cfg
         self.base_voxel_size = torch.cuda.FloatTensor(cfg.voxel_size)
         self.voxel_offset = torch.cuda.FloatTensor(cfg.grid_bounds[:3])
 
-        self.block0 = spconv.SparseSequential(
+        self.block1 = spconv.SparseSequential(
             make_subm_layer(cfg.cnn_C_in, 16, 3, indice_key="subm0", bias=False),
             make_subm_layer(16, 16, 3, indice_key="subm0", bias=False),
             make_sparse_conv_layer(16, 32, 3, 2, padding=1, bias=False),
         )
-        self.block1 = spconv.SparseSequential(
+        self.block2 = spconv.SparseSequential(
             make_subm_layer(32, 32, 3, indice_key="subm1", bias=False),
             make_subm_layer(32, 32, 3, indice_key="subm1", bias=False),
             make_sparse_conv_layer(32, 64, 3, 2, padding=1, bias=False),
         )
-        self.block2 = spconv.SparseSequential(
+        self.block3 = spconv.SparseSequential(
             make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
             make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
             make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
             make_sparse_conv_layer(64, 64, 3, 2, padding=[0, 1, 1], bias=False),
         )
-        self.block3 = spconv.SparseSequential(
+        self.block4 = spconv.SparseSequential(
             make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
             make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
             make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
@@ -115,9 +116,8 @@ class SparseCNN(nn.Module):
         """
         Convert integer voxel indices to metric coordinates.
         Indices are reversed ijk -> kji to maintain correspondence with xyz.
-
-        voxel_size: length-3 tensor describing size of atomic voxel, accounting for stride.
-        voxel_offset: length-3 tensor describing coordinate offset of voxel grid.
+        :voxel_size length-3 tensor describing size of atomic voxel, accounting for stride.
+        :voxel_offset length-3 tensor describing coordinate offset of voxel grid.
         """
         feature = volume.features
         index = torch.flip(volume.indices, (1,))
@@ -130,10 +130,10 @@ class SparseCNN(nn.Module):
         coors = coors.int()
         x0 = spconv.SparseConvTensor(
             voxel_features, coors, self.grid_shape, batch_size)
-        x1 = self.block0(x0)
-        x2 = self.block1(x1)
-        x3 = self.block2(x2)
-        x4 = self.block3(x3)
+        x1 = self.block1(x0)
+        x2 = self.block2(x1)
+        x3 = self.block3(x2)
+        x4 = self.block4(x3)
         args = zip(self.cfg.strides, (x0, x1, x2, x3))
         x = list(itertools.starmap(self.to_global, args))
         return x, x4
