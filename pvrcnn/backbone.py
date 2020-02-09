@@ -2,6 +2,8 @@
 Code borrowed from https://github.com/traveller59/second.pytorch.
 """
 
+import itertools
+import torch
 from torch import nn
 from torch.nn.modules.batchnorm import _BatchNorm
 
@@ -34,16 +36,19 @@ def make_sparse_conv_layer(C_in, C_out, *args, **kwargs):
 
 
 class VoxelFeatureExtractor(nn.Module):
+    """Computes mean of non-zero points within voxel."""
 
-    def __init__(self, C_in):
+    def __init__(self):
         super(VoxelFeatureExtractor, self).__init__()
-        self.C_in = C_in
 
-    def forward(self, features, num_voxels, coors=None):
-        points_mean = features[:, :, : self.C_in].sum(
-            dim=1, keepdim=False
-        ) / num_voxels.type_as(features).view(-1, 1)
-        return points_mean.contiguous()
+    def forward(self, feature, occupancy):
+        """
+        :feature FloatTensor of shape (N, K, C)
+        :return FloatTensor of shape (N, C)
+        """
+        denominator = occupancy.type_as(feature).view(-1, 1)
+        feature = (feature.sum(1) / denominator).contiguous()
+        return feature
 
 
 class SparseCNN(nn.Module):
@@ -56,11 +61,15 @@ class SparseCNN(nn.Module):
         [200, 150, 5]    -> [200, 150, 2]
     """
 
-    def __init__(self, grid_shape, C_in):
+    def __init__(self, grid_shape, cfg):
         super(SparseCNN, self).__init__()
         self.grid_shape = grid_shape
+        self.cfg = cfg
+        self.base_voxel_size = torch.cuda.FloatTensor(cfg.voxel_size)
+        self.voxel_offset = torch.cuda.FloatTensor(cfg.grid_bounds[:3])
+
         self.block0 = spconv.SparseSequential(
-            make_subm_layer(C_in, 16, 3, indice_key="subm0", bias=False),
+            make_subm_layer(cfg.cnn_C_in, 16, 3, indice_key="subm0", bias=False),
             make_subm_layer(16, 16, 3, indice_key="subm0", bias=False),
             make_sparse_conv_layer(16, 32, 3, 2, padding=1, bias=False),
         )
@@ -102,13 +111,29 @@ class SparseCNN(nn.Module):
             elif isinstance(m, _BatchNorm):
                 self.batchnorm_init(m)
 
+    def to_global(self, stride, volume):
+        """
+        Convert integer voxel indices to metric coordinates.
+        Indices are reversed ijk -> kji to maintain correspondence with xyz.
+
+        voxel_size: length-3 tensor describing size of atomic voxel, accounting for stride.
+        voxel_offset: length-3 tensor describing coordinate offset of voxel grid.
+        """
+        feature = volume.features
+        index = torch.flip(volume.indices, (1,))
+        voxel_size = self.base_voxel_size * stride
+        xyz = index[..., 0:3].float() * voxel_size
+        xyz = (xyz + self.voxel_offset)
+        return xyz, feature
+
     def forward(self, voxel_features, coors, batch_size):
         coors = coors.int()
-        x = spconv.SparseConvTensor(
+        x0 = spconv.SparseConvTensor(
             voxel_features, coors, self.grid_shape, batch_size)
-        x0 = self.block0(x)
-        x1 = self.block1(x0)
-        x2 = self.block2(x1)
-        x3 = self.block3(x2)
-        x = [x0, x1, x2, x3]
-        return x
+        x1 = self.block0(x0)
+        x2 = self.block1(x1)
+        x3 = self.block2(x2)
+        x4 = self.block3(x3)
+        args = zip(self.cfg.strides, (x0, x1, x2, x3))
+        x = list(itertools.starmap(self.to_global, args))
+        return x, x4

@@ -10,9 +10,10 @@ Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192): Point-Vox
 - [x] Voxel set abstraction (VSA)
 - [x] Extended VSA
 - [x] ROI grid pooling
+- [x] SECOND backbone (SpMiddleFHD)
 - [ ] Predicted keypoint weighting
-- [ ] Training code
 - [ ] IOU-Net
+- [ ] Training code
 
 
 ## Installation

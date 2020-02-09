@@ -60,7 +60,8 @@ class PV_RCNN(nn.Module):
         self.pnets = self.build_pointnets(cfg)
         self.roi_grid_pool = RoiGridPool(cfg)
         self.voxel_generator, grid_shape = self.build_voxel_generator(cfg)
-        self.cnn = SparseCNN(grid_shape, C_in=cfg.cnn_C_in)
+        self.vfe = VoxelFeatureExtractor()
+        self.cnn = SparseCNN(grid_shape, cfg)
         self.bev_gatherer = self.build_bev_gatherer(cfg)
         self.cfg = cfg
 
@@ -98,11 +99,12 @@ class PV_RCNN(nn.Module):
         :features FloatTensor of shape (Nv, 1)
         :coordinates IntTensor of shape (Nv, 4)
         """
-        features, coordinates = self.voxel_generator.generate(points)[:2]
+        features, coordinates, occupancy = self.voxel_generator.generate(points)
         coordinates = np.pad(coordinates, ((0, 0), (1, 0)), mode="constant", constant_values=0)
         from_numpy = lambda x: torch.from_numpy(x).cuda()
-        points, features, coordinates = map(from_numpy, (points, features, coordinates))
-        features = features.view(-1, self.cfg.max_num_points * self.cfg.C_in)
+        points, features, coordinates, occupancy = \
+            map(from_numpy, (points, features, coordinates, occupancy))
+        features = self.vfe(features, occupancy)
         return points, features, coordinates
 
     def sample_keypoints(self, points):
