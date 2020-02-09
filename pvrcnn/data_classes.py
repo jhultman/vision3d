@@ -1,40 +1,35 @@
 import torch
 
 
-class Pointcloud(torch.Tensor):
+class PointCloud:
     """Convenience wrapper for 3D-pointcloud."""
 
-    def __init__(self, data):
-        self.data = data
-
-    @property
-    def xyz(self):
-        """Return point location."""
-        return self.data[..., 0:3]
-
-    @property
-    def feature(self):
-        """Return rotation around z-axis."""
-        return self.data[..., 3:]
+    def __init__(self, xyz, feature):
+        self.xyz = xyz
+        self.feature = feature
 
 
-class Boxes3D(torch.Tensor):
+class Boxes3D:
     """Convenience wrapper for 3D-boxes."""
 
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, tensor):
+        self._tensor = tensor
 
     @property
     def wlh(self):
         """Return dims in wlh order."""
-        return self.data[..., 3:6]
+        return self.tensor[..., 3:6]
 
     @property
     def center(self):
         """Return dims in wlh order."""
-        return self.data[..., 0:3]
+        return self.tensor[..., 0:3]
 
     @property
     def yaw(self):
         """Return rotation around z-axis."""
-        return self.data[..., 6:7]
+        return self.tensor[..., 6:7]
+
+    @property
+    def tensor(self):
+        return self._tensor

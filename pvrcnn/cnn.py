@@ -57,5 +57,5 @@ class CNN_3D(nn.Module):
         x2 = self.blocks[1](x1)
         x3 = self.blocks[2](x2)
         x4 = self.blocks[3](x3)
-        x = [self.to_global(2 ** i, x) for i, x in enumerate([x1, x2, x3, x4])] + [x4]
-        return x
+        x = [self.to_global(2 ** i, x) for i, x in enumerate([x1, x2, x3, x4])]
+        return x, x4

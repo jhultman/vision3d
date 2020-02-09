@@ -19,11 +19,18 @@ class PvrcnnConfig:
             [2.4, 4.8]
         ]
         self.mlps = [
-            [[1, 16, 32], [1, 16, 32]],
+            [[1, 16, 16], [1, 16, 16]],
             [[16, 16, 32], [16, 16, 32]],
-            [[16, 32, 64], [16, 32, 64]],
+            [[16, 32, 32], [16, 32, 32]],
             [[32, 64, 64], [32, 64, 64]],
-            [[64, 64, 128], [64, 64, 128]]
+            [[64, 96, 128], [64, 96, 128]]
         ]
         self.nsamples = [[16, 32]] * len(self.radii)
         assert len(self.radii) == len(self.mlps)
+
+        # RoiGridPool parameters
+        self.n_gridpoints = 216
+        self.gridpool_samples = [16, 32]
+        self.gridpool_radii = [0.8, 1.6]
+        self.gridpool_mlps = [[864, 128, 128], [864, 128, 128]]
+        self.gridpool_reduction_mlps = [self.n_gridpoints * 256, 256, 256]
