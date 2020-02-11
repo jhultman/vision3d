@@ -1,51 +1,18 @@
 import numpy as np
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 import spconv
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_utils import furthest_point_sample
 
+from pvrcnn.bev import BEVFeatureGatherer
 from pvrcnn.config import PvrcnnConfig
 from pvrcnn.data_classes import Boxes3D
 from pvrcnn.roi_grid_pool import RoiGridPool
 from pvrcnn.backbone import SparseCNN, VoxelFeatureExtractor
-
-
-class BEV_FeatureGatherer(nn.Module):
-
-    def __init__(self, cfg, voxel_offset, base_voxel_size):
-        super(BEV_FeatureGatherer, self).__init__()
-        self.cfg = cfg
-        self.voxel_offset = voxel_offset
-        self.base_voxel_size = base_voxel_size
-
-    def normalize_grid_sample_indices(self, indices, H, W):
-        """F.grid_sample expects normalized indices on (-1, +1)."""
-        image_dims = torch.cuda.FloatTensor([H - 1, W - 1])
-        indices = torch.min(torch.clamp(indices, 0), image_dims)
-        indices = 2 * (indices / (image_dims - 1)) - 1
-        return indices
-
-    def compute_bev_indices(self, keypoint_xyz, H, W):
-        """Convert xyz coordinates to fractional BEV indices."""
-        indices = (keypoint_xyz[:, None, :, :2] - self.voxel_offset[:2])
-        indices = indices / (self.base_voxel_size[:2] * self.cfg.strides[-1])
-        indices = self.normalize_grid_sample_indices(indices, H, W)
-        return indices
-
-    def forward(self, volume, keypoint_xyz):
-        """
-        Project 3D voxel grid to XY-plane and gather
-        BEV features using bilinear interpolation.
-        """
-        volume = volume.dense()
-        N, C, D, H, W = volume.shape
-        volume = volume.view(N, C * D, H, W)
-        indices = self.compute_bev_indices(keypoint_xyz, H, W)
-        features = F.grid_sample(volume, indices).squeeze(2)
-        return features
+from pvrcnn.proposal import ProposalLayer
+from pvrcnn.refinement import RefinementLayer
 
 
 class PV_RCNN(nn.Module):
@@ -63,6 +30,8 @@ class PV_RCNN(nn.Module):
         self.vfe = VoxelFeatureExtractor()
         self.cnn = SparseCNN(grid_shape, cfg)
         self.bev_gatherer = self.build_bev_gatherer(cfg)
+        self.proposal_layer = ProposalLayer(cfg)
+        self.refinement_layer = RefinementLayer(cfg)
         self.cfg = cfg
 
     def build_voxel_generator(self, cfg):
@@ -87,9 +56,12 @@ class PV_RCNN(nn.Module):
         return nn.Sequential(*pnets)
 
     def build_bev_gatherer(self, cfg):
-        bev = BEV_FeatureGatherer(
+        bev = BEVFeatureGatherer(
             cfg, self.cnn.voxel_offset, self.cnn.base_voxel_size)
         return bev
+
+    def from_numpy(self, x):
+        return torch.from_numpy(x).cuda()
 
     def voxelize(self, points):
         """
@@ -100,10 +72,9 @@ class PV_RCNN(nn.Module):
         :coordinates IntTensor of shape (Nv, 4)
         """
         features, coordinates, occupancy = self.voxel_generator.generate(points)
-        coordinates = np.pad(coordinates, ((0, 0), (1, 0)), mode="constant", constant_values=0)
-        from_numpy = lambda x: torch.from_numpy(x).cuda()
+        coordinates = np.pad(coordinates, ((0, 0), (1, 0)))
         points, features, coordinates, occupancy = \
-            map(from_numpy, (points, features, coordinates, occupancy))
+            map(self.from_numpy, (points, features, coordinates, occupancy))
         features = self.vfe(features, occupancy)
         return points, features, coordinates
 
@@ -120,14 +91,11 @@ class PV_RCNN(nn.Module):
 
     def pnet_forward(self, cnn_out, keypoint_xyz):
         """
-        Call PointNet modules to gather keypoint features
-        from the intermediate 3D CNN feature maps.
-
+        Call PointNets to gather keypoint features from CNN feature volumes.
         :param xyz: (B, N, 3) tensor of the xyz coordinates of the features
         :param features: (B, N, C) tensor of the descriptors of the the features
         :param new_xyz: (B, npoint, 3) tensor of the new features' xyz
         :return (B, npoint, \sum_k(mlps[k][-1])) tensor of the new_features descriptors
-
         """
         pnet_out = []
         for (voxel_xyz, voxel_features), pnet in zip(cnn_out, self.pnets):
@@ -140,6 +108,7 @@ class PV_RCNN(nn.Module):
     def forward(self, points):
         """
         TODO: Document intermediate tensor shapes.
+        TODO: Batch support.
         """
         points, features, coordinates = self.voxelize(points)
         cnn_out, final_volume = self.cnn(features, coordinates, batch_size=1)
@@ -148,8 +117,9 @@ class PV_RCNN(nn.Module):
         pnet_out = self.pnet_forward(cnn_out, keypoints_xyz)
         bev_out = self.bev_gatherer(final_volume, keypoints_xyz)
         features = torch.cat(pnet_out + [bev_out], dim=1)
-        proposals = Boxes3D(20 * torch.rand((25, 7)).cuda())
+        proposals = self.proposal_layer(keypoints_xyz, features)
         pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
+        predictions = self.refinement_layer(proposals, pooled_features)
         return pooled_features
 
 

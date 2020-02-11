@@ -1,5 +1,5 @@
 """
-Code borrowed from https://github.com/traveller59/second.pytorch.
+Modified SpMiddleFHD (see github.com/traveller59/second.pytorch).
 """
 
 import itertools
@@ -53,8 +53,7 @@ class VoxelFeatureExtractor(nn.Module):
 
 class SparseCNN(nn.Module):
     """
-    Based on SECOND SpMiddleFHD. Returns feature volumes strided 1x, 2x, 4x, 8x.
-
+    Returns feature volumes strided 1x, 2x, 4x, 8x, 8x.
         block_1: [ 4, 1600, 1280, 41] -> [32, 800, 640, 21]
         block_2: [32,  800,  640, 21] -> [64, 400, 320, 11]
         block_3: [64,  400,  320, 11] -> [64, 200, 160,  5]
@@ -126,10 +125,10 @@ class SparseCNN(nn.Module):
         xyz = (xyz + self.voxel_offset)
         return xyz, feature
 
-    def forward(self, voxel_features, coors, batch_size):
-        coors = coors.int()
+    def forward(self, features, coordinates, batch_size):
         x0 = spconv.SparseConvTensor(
-            voxel_features, coors, self.grid_shape, batch_size)
+            features, coordinates.int(), self.grid_shape, batch_size
+        )
         x1 = self.block1(x0)
         x2 = self.block2(x1)
         x3 = self.block3(x2)
