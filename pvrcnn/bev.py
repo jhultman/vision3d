@@ -21,7 +21,7 @@ class BEVFeatureGatherer(nn.Module):
     def compute_bev_indices(self, keypoint_xyz, H, W):
         """Convert xyz coordinates to fractional BEV indices."""
         indices = keypoint_xyz[:, None, :, :2] - self.voxel_offset[:2]
-        indices = indices / (self.base_voxel_size[:2] * self.cfg.strides[-1])
+        indices = indices / (self.base_voxel_size[:2] * self.cfg.STRIDES[-1])
         indices = self.normalize_grid_sample_indices(indices, H, W)
         return indices
 

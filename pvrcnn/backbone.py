@@ -63,13 +63,12 @@ class SparseCNN(nn.Module):
     def __init__(self, grid_shape, cfg):
         """:grid_shape voxel grid dimensions in ZYX order."""
         super(SparseCNN, self).__init__()
-        self.grid_shape = grid_shape
         self.cfg = cfg
-        self.base_voxel_size = torch.cuda.FloatTensor(cfg.voxel_size)
-        self.voxel_offset = torch.cuda.FloatTensor(cfg.grid_bounds[:3])
-
+        self.grid_shape = grid_shape
+        self.base_voxel_size = torch.cuda.FloatTensor(cfg.VOXEL_SIZE)
+        self.voxel_offset = torch.cuda.FloatTensor(cfg.GRID_BOUNDS[:3])
         self.block1 = spconv.SparseSequential(
-            make_subm_layer(cfg.cnn_C_in, 16, 3, indice_key="subm0", bias=False),
+            make_subm_layer(cfg.C_IN, 16, 3, indice_key="subm0", bias=False),
             make_subm_layer(16, 16, 3, indice_key="subm0", bias=False),
             make_sparse_conv_layer(16, 32, 3, 2, padding=1, bias=False),
         )
@@ -133,6 +132,6 @@ class SparseCNN(nn.Module):
         x2 = self.block2(x1)
         x3 = self.block3(x2)
         x4 = self.block4(x3)
-        args = zip(self.cfg.strides, (x0, x1, x2, x3))
+        args = zip(self.cfg.STRIDES, (x0, x1, x2, x3))
         x = list(itertools.starmap(self.to_global, args))
         return x, x4

@@ -16,16 +16,16 @@ class RoiGridPool(nn.Module):
     def build_pointnet(self, cfg):
         """Copy channel list because PointNet modifies it in-place."""
         pnet = PointnetSAModuleMSG(
-            npoint=-1, radii=cfg.gridpool_radii,
-            nsamples=cfg.gridpool_samples,
-            mlps=cfg.gridpool_mlps.copy(), use_xyz=True,
+            npoint=-1, radii=cfg.GRIDPOOL.RADII_PN,
+            nsamples=cfg.SAMPLES_PN,
+            mlps=cfg.GRIDPOOL.MLPS_PN.copy(), use_xyz=True,
         )
         return pnet
 
     def build_reduction(self, cfg):
         reduction = nn.Sequential(
-            FC(*cfg.gridpool_reduction_mlps[0:2]),
-            FC(*cfg.gridpool_reduction_mlps[1:3]),
+            FC(*cfg.GRIDPOOL.MLPS_REDUCTION[0:2]),
+            FC(*cfg.GRIDPOOL.MLPS_REDUCTION[1:3]),
         )
         return reduction
 
@@ -47,7 +47,7 @@ class RoiGridPool(nn.Module):
         Generate gridpoints within object proposals.
         :return FloatTensor of shape (nb, ng, 3)
         """
-        m = self.cfg.n_gridpoints
+        m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
         n, device = proposals.wlh.shape[0], proposals.wlh.device
         gridpoints = torch.rand((n, m, 3), device=device) * proposals.wlh[:, None,]
         gridpoints = self.rotate_z(gridpoints, proposals.yaw) + proposals.center[:, None]
@@ -62,7 +62,7 @@ class RoiGridPool(nn.Module):
         gridpoints = gridpoints.view(1, -1, 3)
         pooled_features = self.pnet(keypoints_xyz, keypoints_features, gridpoints)[1]
         n = proposals.wlh.shape[0]
-        m = self.cfg.n_gridpoints
+        m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
         pooled_features = pooled_features.view(1, -1, n, m) \
             .permute(0, 3, 1, 2).contiguous().view(1, n, -1)
         pooled_features = self.reduction(pooled_features)

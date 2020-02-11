@@ -6,8 +6,8 @@ import spconv
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_utils import furthest_point_sample
 
+from pvrcnn.config import cfg
 from pvrcnn.bev import BEVFeatureGatherer
-from pvrcnn.config import PvrcnnConfig
 from pvrcnn.data_classes import Boxes3D
 from pvrcnn.roi_grid_pool import RoiGridPool
 from pvrcnn.backbone import SparseCNN, VoxelFeatureExtractor
@@ -37,10 +37,10 @@ class PV_RCNN(nn.Module):
     def build_voxel_generator(self, cfg):
         """Voxel-grid is reversed XYZ -> ZYX and padded in Z-axis."""
         voxel_generator = spconv.utils.VoxelGenerator(
-            voxel_size=cfg.voxel_size,
-            point_cloud_range=cfg.grid_bounds,
-            max_voxels=cfg.max_voxels,
-            max_num_points=cfg.max_num_points,
+            voxel_size=cfg.VOXEL_SIZE,
+            point_cloud_range=cfg.GRID_BOUNDS,
+            max_voxels=cfg.MAX_VOXELS,
+            max_num_points=cfg.MAX_OCCUPANCY,
         )
         grid_shape = np.r_[voxel_generator.grid_size[::-1]] + [1, 0, 0]
         return voxel_generator, grid_shape
@@ -48,10 +48,11 @@ class PV_RCNN(nn.Module):
     def build_pointnets(self, cfg):
         """Copy channel list because PointNet modifies it in-place."""
         pnets = []
-        for i in range(len(cfg.mlps)):
+        for i, mlps in enumerate(cfg.PSA.MLPS):
             pnets += [PointnetSAModuleMSG(
-                npoint=-1, radii=cfg.radii[i], nsamples=cfg.nsamples[i],
-                mlps=cfg.mlps[i].copy(), use_xyz=True,
+                npoint=-1, radii=cfg.PSA.RADII[i],
+                nsamples=cfg.SAMPLES_PN,
+                mlps=mlps.copy(), use_xyz=True,
             )]
         return nn.Sequential(*pnets)
 
@@ -85,7 +86,7 @@ class PV_RCNN(nn.Module):
         :return FloatTensor of shape (n_keypoints, 3),
         """
         points = points.unsqueeze(0).contiguous()
-        indices = furthest_point_sample(points, self.cfg.n_keypoints)
+        indices = furthest_point_sample(points, self.cfg.NUM_KEYPOINTS)
         keypoints = points[:, indices.squeeze(0).long(), :3].contiguous()
         return keypoints
 
@@ -124,9 +125,8 @@ class PV_RCNN(nn.Module):
 
 
 def main():
-    cfg = PvrcnnConfig()
     net = PV_RCNN(cfg).cuda()
-    points = np.random.uniform(0, 50, size=(120000, cfg.raw_C_in)).astype(np.float32)
+    points = np.random.uniform(0, 50, size=(120000, cfg.C_IN)).astype(np.float32)
     out = net(points)
 
 
