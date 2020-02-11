@@ -121,7 +121,7 @@ class PV_RCNN(nn.Module):
         proposals = self.proposal_layer(keypoints_xyz, features)
         pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
         predictions = self.refinement_layer(proposals, pooled_features)
-        return pooled_features
+        return predictions
 
 
 def main():

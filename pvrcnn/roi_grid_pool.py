@@ -38,8 +38,9 @@ class RoiGridPool(nn.Module):
         """
         xy, z = torch.split(points, [2, 1], dim=-1)
         c, s = torch.cos(theta), torch.sin(theta)
-        R = torch.stack((c, -s, s, c), dim=-1).view(-1, 2, 2)
-        xyz = torch.cat((torch.einsum('ijk,imk->imj', R, xy), z), dim=-1)
+        R = torch.stack((c, -s, s, c), dim=-1).view(1, -1, 2, 2)
+        xy = torch.einsum('ijkl,imjl->imjk', R, xy)
+        xyz = torch.cat((xy, z), dim=-1)
         return xyz
 
     def sample_gridpoints(self, proposals):
@@ -48,8 +49,8 @@ class RoiGridPool(nn.Module):
         :return FloatTensor of shape (nb, ng, 3)
         """
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
-        n, device = proposals.wlh.shape[0], proposals.wlh.device
-        gridpoints = torch.rand((n, m, 3), device=device) * proposals.wlh[:, None,]
+        n, device = proposals.tensor.shape[1], proposals.tensor.device
+        gridpoints = torch.rand((1, m, n, 3), device=device) * proposals.wlh[:, None,]
         gridpoints = self.rotate_z(gridpoints, proposals.yaw) + proposals.center[:, None]
         return gridpoints
 
@@ -61,7 +62,7 @@ class RoiGridPool(nn.Module):
         gridpoints = self.sample_gridpoints(proposals)
         gridpoints = gridpoints.view(1, -1, 3)
         pooled_features = self.pnet(keypoints_xyz, keypoints_features, gridpoints)[1]
-        n = proposals.wlh.shape[0]
+        n = proposals.tensor.shape[1]
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
         pooled_features = pooled_features.view(1, -1, n, m) \
             .permute(0, 3, 1, 2).contiguous().view(1, n, -1)

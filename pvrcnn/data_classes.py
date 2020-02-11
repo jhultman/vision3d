@@ -8,19 +8,24 @@ class Boxes3D:
         self._tensor = tensor
 
     @property
-    def wlh(self):
-        """Return dims in wlh order."""
-        return self.tensor[..., 3:6]
-
-    @property
     def center(self):
         """Return dims in wlh order."""
         return self.tensor[..., 0:3]
 
     @property
+    def wlh(self):
+        """Return dims in wlh order."""
+        return self.tensor[..., 3:6]
+
+    @property
     def yaw(self):
         """Return rotation around z-axis."""
         return self.tensor[..., 6:7]
+
+    @property
+    def score(self):
+        """Return rotation around z-axis."""
+        return self.tensor[..., 7:8]
 
     @property
     def tensor(self):

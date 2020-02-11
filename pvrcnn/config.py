@@ -24,18 +24,27 @@ _C.PSA.RADII = [
     [2.4, 4.8]
 ]
 _C.PSA.MLPS = [
-    [[1, 8, 8], [1, 8, 8]],
+    [[1, 8, 16], [1, 8, 16]],
     [[4, 8, 16], [4, 8, 16]],
     [[32, 32, 32], [32, 32, 32]],
     [[64, 64, 64], [64, 64, 64]],
-    [[64, 96, 128], [64, 96, 128]]
+    [[64, 64, 64], [64, 64, 64]]
 ]
 
 # RoiGridPool parameters
 _C.GRIDPOOL = CN()
-_C.GRIDPOOL.NUM_GRIDPOINTS = 216
+_C.GRIDPOOL.NUM_GRIDPOINTS = 16
 _C.GRIDPOOL.RADII_PN = [0.8, 1.6]
-_C.GRIDPOOL.MLPS_PN = [[624, 128, 128], [624, 128, 128]]
-_C.GRIDPOOL.MLPS_REDUCTION = [_C.GRIDPOOL.NUM_GRIDPOINTS * 256, 256, 256]
+_C.GRIDPOOL.MLPS_PN = [[512, 192, 96], [512, 192, 96]]
+_C.GRIDPOOL.MLPS_REDUCTION = [_C.GRIDPOOL.NUM_GRIDPOINTS * 192, 256, 256]
+
+# Proposal
+_C.PROPOSAL = CN()
+_C.PROPOSAL.MLPS = [512, 256, 8]
+_C.PROPOSAL.TOPK = 300
+
+# Refinement
+_C.REFINEMENT = CN()
+_C.REFINEMENT.MLPS = [256, 128, 8]
 
 cfg = _C
