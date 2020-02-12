@@ -18,8 +18,10 @@ class Boxes3D:
         return self.tensor[..., 3:6]
 
     @property
-    def yaw(self):
+    def yaw(self, squeeze=True):
         """Return rotation around z-axis."""
+        if squeeze:
+            return self.tensor[..., 6:7].squeeze(-1)
         return self.tensor[..., 6:7]
 
     @property

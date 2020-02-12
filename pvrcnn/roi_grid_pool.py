@@ -32,15 +32,17 @@ class RoiGridPool(nn.Module):
     def rotate_z(self, points, theta):
         """
         Rotate points by theta around z-axis.
-        :points FloatTensor of shape (N, M, 3)
-        :theta FloatTensor of shape (N,)
-        :return FloatTensor of shape (N, M, 3)
+        :points FloatTensor of shape (b, n, m, 3)
+        :theta FloatTensor of shape (b, n)
+        :return FloatTensor of shape (b, n, m, 3)
         """
+        b, n, m, _ = points.shape
+        theta = theta.unsqueeze(-1).expand(-1, -1, m)
         xy, z = torch.split(points, [2, 1], dim=-1)
         c, s = torch.cos(theta), torch.sin(theta)
-        R = torch.stack((c, -s, s, c), dim=-1).view(1, -1, 2, 2)
-        xy = torch.einsum('ijkl,imjl->imjk', R, xy)
-        xyz = torch.cat((xy, z), dim=-1)
+        R = torch.stack((c, -s, s, c), dim=-1).view(b, n, m, 2, 2)
+        xy = torch.matmul(R, xy.unsqueeze(-1))
+        xyz = torch.cat((xy.squeeze(-1), z), dim=-1)
         return xyz
 
     def sample_gridpoints(self, proposals):
@@ -48,23 +50,24 @@ class RoiGridPool(nn.Module):
         Generate gridpoints within object proposals.
         :return FloatTensor of shape (nb, ng, 3)
         """
+        b, n, _ = proposals.tensor.shape
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
-        n, device = proposals.tensor.shape[1], proposals.tensor.device
-        gridpoints = torch.rand((1, m, n, 3), device=device) * proposals.wlh[:, None,]
-        gridpoints = self.rotate_z(gridpoints, proposals.yaw) + proposals.center[:, None]
+        device = proposals.tensor.device
+        gridpoints = torch.rand((b, n, m, 3), device=device) * proposals.wlh[:, :, None,]
+        gridpoints = self.rotate_z(gridpoints, proposals.yaw) + proposals.center[:, :, None]
         return gridpoints
 
-    def forward(self, proposals, keypoints_xyz, keypoints_features):
+    def forward(self, proposals, keypoint_xyz, keypoint_features):
         """
         Gather features from within proposals.
         TODO: Ensure gridpoint features are reduced correctly.
         """
-        gridpoints = self.sample_gridpoints(proposals)
-        gridpoints = gridpoints.view(1, -1, 3)
-        pooled_features = self.pnet(keypoints_xyz, keypoints_features, gridpoints)[1]
-        n = proposals.tensor.shape[1]
+        b, n, _ = proposals.tensor.shape
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
-        pooled_features = pooled_features.view(1, -1, n, m) \
-            .permute(0, 3, 1, 2).contiguous().view(1, n, -1)
+        gridpoints = self.sample_gridpoints(proposals)
+        gridpoints = gridpoints.view(b, -1, 3)
+        pooled_features = self.pnet(keypoint_xyz, keypoint_features, gridpoints)[1]
+        pooled_features = pooled_features.view(b, -1, n, m) \
+            .permute(0, 2, 1, 3).contiguous().view(b, n, -1)
         pooled_features = self.reduction(pooled_features)
         return pooled_features

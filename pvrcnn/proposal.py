@@ -28,6 +28,6 @@ class ProposalLayer(nn.Module):
         features = features.permute(0, 2, 1)
         proposals = Boxes3D(self.mlp(features))
         _, indices = torch.topk(proposals.score, k=self.cfg.PROPOSAL.TOPK, dim=1)
-        indices = indices.squeeze(0).squeeze(-1)
-        proposals = Boxes3D(proposals.tensor[:, indices])
+        indices = indices.expand(-1, -1, proposals.tensor.shape[-1])
+        proposals = Boxes3D(proposals.tensor.gather(1, indices))
         return proposals

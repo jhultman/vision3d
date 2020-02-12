@@ -2,9 +2,11 @@ import numpy as np
 import torch
 from torch import nn
 
+from typing import List
+
 import spconv
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
-from pointnet2.pointnet2_utils import furthest_point_sample
+from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
 from pvrcnn.config import cfg
 from pvrcnn.bev import BEVFeatureGatherer
@@ -46,7 +48,7 @@ class PV_RCNN(nn.Module):
         return voxel_generator, grid_shape
 
     def build_pointnets(self, cfg):
-        """Copy channel list because PointNet modifies it in-place."""
+        """Copy list because PointNet modifies it in-place."""
         pnets = []
         for i, mlps in enumerate(cfg.PSA.MLPS):
             pnets += [PointnetSAModuleMSG(
@@ -61,19 +63,29 @@ class PV_RCNN(nn.Module):
             cfg, self.cnn.voxel_offset, self.cnn.base_voxel_size)
         return bev
 
+    def generate_batch_voxels(self, points):
+        """Voxelize points and tag with batch index."""
+        features, coordinates, occupancy = [], [], []
+        for i, p in enumerate(points):
+            f, c, o = self.voxel_generator.generate(p)
+            c = np.pad(c, ((0, 0), (1, 0)), constant_values=i)
+            features += [f]; coordinates += [c]; occupancy += [o]
+        return map(np.concatenate, (features, coordinates, occupancy))
+
     def from_numpy(self, x):
+        """Make cuda tensor."""
         return torch.from_numpy(x).cuda()
 
     def voxelize(self, points):
         """
         Compute sparse voxel grid.
-        :points_in np.ndarray of shape (Np, 4)
+        :points_in list of np.ndarrays of shape (Np, 4)
         :points_out FloatTensor of shape (Np, 4)
         :features FloatTensor of shape (Nv, 1)
         :coordinates IntTensor of shape (Nv, 4)
         """
-        features, coordinates, occupancy = self.voxel_generator.generate(points)
-        coordinates = np.pad(coordinates, ((0, 0), (1, 0)))
+        features, coordinates, occupancy = self.generate_batch_voxels(points)
+        points = self.pad_for_batch(points)
         points, features, coordinates, occupancy = \
             map(self.from_numpy, (points, features, coordinates, occupancy))
         features = self.vfe(features, occupancy)
@@ -81,13 +93,14 @@ class PV_RCNN(nn.Module):
 
     def sample_keypoints(self, points):
         """
-        Sample keypoints from raw pointcloud. Assumes unit batch size.
-        :points FloatTensor of shape (N, 4).
-        :return FloatTensor of shape (n_keypoints, 3),
+        Sample keypoints from raw pointcloud.
+            - fps expects points shape (B, N, 3)
+            - fps returns indices shape (B, K)
+            - gather expects features shape (B, C, N)
         """
-        points = points.unsqueeze(0).contiguous()
+        points = points[..., :3].transpose(1, 2).contiguous()
         indices = furthest_point_sample(points, self.cfg.NUM_KEYPOINTS)
-        keypoints = points[:, indices.squeeze(0).long(), :3].contiguous()
+        keypoints = gather_operation(points, indices).transpose(1, 2).contiguous()
         return keypoints
 
     def pnet_forward(self, cnn_out, keypoint_xyz):
@@ -100,19 +113,31 @@ class PV_RCNN(nn.Module):
         """
         pnet_out = []
         for (voxel_xyz, voxel_features), pnet in zip(cnn_out, self.pnets):
-            voxel_xyz = voxel_xyz.unsqueeze(0).contiguous()
-            voxel_features = voxel_features.t().unsqueeze(0).contiguous()
+            voxel_xyz = voxel_xyz.contiguous()
+            voxel_features = voxel_features.transpose(1, 2).contiguous()
             out = pnet(voxel_xyz, voxel_features, keypoint_xyz)[1]
             pnet_out += [out]
         return pnet_out
 
+    def pad_for_batch(self, points: List) -> torch.Tensor:
+        """Pad with subsampled points to form dense minibatch."""
+        num_points = np.r_[[p.shape[0] for p in points]]
+        pad = num_points.max() - num_points
+        points_batch = []
+        for points_i, pad_i in zip(points, pad):
+            idx = np.random.choice(points_i.shape[0], pad_i)
+            points_batch += [np.concatenate((points_i, points_i[idx]))]
+        points = np.stack(points_batch, axis=0)
+        return points
+
     def forward(self, points):
         """
         TODO: Document intermediate tensor shapes.
-        TODO: Batch support.
         """
+        batch_size = len(points)
+        point_lengths = [len(p) for p in points]
         points, features, coordinates = self.voxelize(points)
-        cnn_out, final_volume = self.cnn(features, coordinates, batch_size=1)
+        cnn_out, final_volume = self.cnn(features, coordinates, batch_size=batch_size)
         cnn_out = [torch.split(points, [3, 1], dim=-1)] + cnn_out
         keypoints_xyz = self.sample_keypoints(points)
         pnet_out = self.pnet_forward(cnn_out, keypoints_xyz)
@@ -124,9 +149,15 @@ class PV_RCNN(nn.Module):
         return predictions
 
 
+def make_points(n, cfg):
+    points = np.random.uniform(
+        0, 50, size=(n, cfg.C_IN)).astype(np.float32)
+    return points
+
+
 def main():
     net = PV_RCNN(cfg).cuda()
-    points = np.random.uniform(0, 50, size=(120000, cfg.C_IN)).astype(np.float32)
+    points = [make_points(99000, cfg), make_points(95000, cfg)]
     out = net(points)
 
 

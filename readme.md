@@ -18,7 +18,6 @@ Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192): Point-Vox
 - [ ] Training
 - [ ] Validation
 
-
 ## Installation
 
 Tested in environment:
@@ -28,14 +27,12 @@ Tested in environment:
 - Ubuntu 18.04
 - Python 3.6
 
-
 1. Installing Pointnet2:
 ```
 git clone https://github.com/sshaoshuai/Pointnet2.PyTorch.git
 cd Pointnet2.PyTorch && python setup.py install
 export PYTHONPATH=$PYTHONPATH:/path/to/Pointnet2.PyTorch/
 ```
-
 
 2. Installing spconv:
 ```
@@ -45,6 +42,11 @@ python setup.py bdist_wheel
 cd ./dist && pip install *.whl
 ```
 
+2. Installing torchsearchsorted:
+```
+git clone https://github.com/aliutkus/torchsearchsorted.git
+cd torchsearchsorted && pip install .
+```
 
 3. Installing pvrcnn (this package):
 ```

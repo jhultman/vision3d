@@ -7,6 +7,7 @@ import torch
 from torch import nn
 from torch.nn.modules.batchnorm import _BatchNorm
 
+from torchsearchsorted import searchsorted
 import spconv
 
 
@@ -33,6 +34,13 @@ def make_sparse_conv_layer(C_in, C_out, *args, **kwargs):
         nn.ReLU(),
     )
     return layer
+
+
+def random_choice(x, n, dim=0):
+    """Emulate numpy.random.choice."""
+    assert dim == 0, 'Currently support only dim 0.'
+    inds = torch.randint(0, x.size(dim), (n,), device=x.device)
+    return x[inds]
 
 
 class VoxelFeatureExtractor(nn.Module):
@@ -117,12 +125,34 @@ class SparseCNN(nn.Module):
         :voxel_size length-3 tensor describing size of atomic voxel, accounting for stride.
         :voxel_offset length-3 tensor describing coordinate offset of voxel grid.
         """
-        feature = volume.features
         index = torch.flip(volume.indices, (1,))
         voxel_size = self.base_voxel_size * stride
         xyz = index[..., 0:3].float() * voxel_size
         xyz = (xyz + self.voxel_offset)
+        xyz = self.pad_batch(xyz, index[..., -1], volume.batch_size)
+        feature = self.pad_batch(volume.features, index[..., -1], volume.batch_size)
         return xyz, feature
+
+    def compute_pad_amounts(self, batch_index, batch_size):
+        """Compute padding needed to form dense minibatch."""
+        helper_index = torch.arange(batch_size + 1, device=batch_index.device)
+        helper_index = helper_index.unsqueeze(0).contiguous().int()
+        batch_index = batch_index.unsqueeze(0).contiguous().int()
+        start_index = searchsorted(batch_index, helper_index).squeeze(0)
+        batch_count = start_index[1:] - start_index[:-1]
+        pad = list((batch_count.max() - batch_count).cpu().numpy())
+        batch_count = list(batch_count.cpu().numpy())
+        return batch_count, pad
+
+    def pad_batch(self, x, batch_index, batch_size):
+        """Pad sparse tensor with subsamples to form dense minibatch."""
+        if batch_size == 1:
+            return x.unsqueeze(0)
+        batch_count, pad = self.compute_pad_amounts(batch_index, batch_size)
+        chunks = x.split(batch_count)
+        pad_values = [random_choice(c, n) for (c, n) in zip(chunks, pad)]
+        chunks = [torch.cat((c, p)) for (c, p) in zip(chunks, pad_values)]
+        return torch.stack(chunks)
 
     def forward(self, features, coordinates, batch_size):
         x0 = spconv.SparseConvTensor(

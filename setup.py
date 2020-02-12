@@ -6,5 +6,5 @@ setup(
     description='Implementation of PV-RCNN algorithm',
     author='Jacob Hultman',
     packages=['pvrcnn'],
-    install_requires=['numpy', 'torch', 'yacs', 'spconv', 'pointnet2'],
+    install_requires=['numpy', 'torch', 'yacs', 'spconv', 'pointnet2', 'torchsearchsorted'],
 )
