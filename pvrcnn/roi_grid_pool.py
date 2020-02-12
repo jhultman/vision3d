@@ -1,3 +1,4 @@
+from copy import deepcopy
 import torch
 from torch import nn
 
@@ -18,7 +19,7 @@ class RoiGridPool(nn.Module):
         pnet = PointnetSAModuleMSG(
             npoint=-1, radii=cfg.GRIDPOOL.RADII_PN,
             nsamples=cfg.SAMPLES_PN,
-            mlps=cfg.GRIDPOOL.MLPS_PN.copy(), use_xyz=True,
+            mlps=deepcopy(cfg.GRIDPOOL.MLPS_PN), use_xyz=True,
         )
         return pnet
 

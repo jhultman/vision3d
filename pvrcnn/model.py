@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np
 import torch
 from torch import nn
@@ -54,7 +55,7 @@ class PV_RCNN(nn.Module):
             pnets += [PointnetSAModuleMSG(
                 npoint=-1, radii=cfg.PSA.RADII[i],
                 nsamples=cfg.SAMPLES_PN,
-                mlps=mlps.copy(), use_xyz=True,
+                mlps=deepcopy(mlps), use_xyz=True,
             )]
         return nn.Sequential(*pnets)
 
@@ -155,9 +156,25 @@ def make_points(n, cfg):
     return points
 
 
-def main():
+def time_forward():
+    import time
     net = PV_RCNN(cfg).cuda()
-    points = [make_points(99000, cfg), make_points(95000, cfg)]
+    torch.cuda.synchronize()
+    ntrials = 10
+    t = time.time()
+    with torch.no_grad():
+        for i in range(ntrials):
+            points = [make_points(95000, cfg), make_points(90000, cfg)]
+            out = net(points)
+    torch.cuda.synchronize()
+    avg_time = (time.time() - t) / ntrials
+    print(f'Time: {avg_time:.04f} (ms), {ntrials} trials')
+
+
+def main():
+    time_forward()
+    net = PV_RCNN(cfg).cuda()
+    points = [make_points(95000, cfg), make_points(90000, cfg)]
     out = net(points)
 
 

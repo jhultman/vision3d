@@ -42,13 +42,13 @@ python setup.py bdist_wheel
 cd ./dist && pip install *.whl
 ```
 
-2. Installing torchsearchsorted:
+3. Installing torchsearchsorted:
 ```
 git clone https://github.com/aliutkus/torchsearchsorted.git
 cd torchsearchsorted && pip install .
 ```
 
-3. Installing pvrcnn (this package):
+4. Installing pvrcnn (this package):
 ```
 python setup.py develop
 ```
