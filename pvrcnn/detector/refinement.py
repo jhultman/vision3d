@@ -1,13 +1,11 @@
 import torch
 from torch import nn
 
-from pointnet2.pytorch_utils import FC
+from .mlp import MLP
 
 
 class RefinementLayer(nn.Module):
-    """
-    Use pooled features to refine proposals.
-    """
+    """Use pooled features to refine proposals."""
 
     def __init__(self, cfg):
         super(RefinementLayer, self).__init__()
@@ -15,11 +13,7 @@ class RefinementLayer(nn.Module):
         self.cfg = cfg
 
     def build_mlp(self, cfg):
-        """TODO: Ensure no batch norm or activation in regression."""
-        mlp = nn.Sequential(
-            FC(*cfg.REFINEMENT.MLPS[0:2]),
-            FC(*cfg.REFINEMENT.MLPS[1:3]),
-        )
+        mlp = MLP(cfg.REFINEMENT.MLPS, bias=True, bn=False, relu=[True, False])
         return mlp
 
     def apply_refinements(self, refinements, proposals):

@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from pointnet2.pytorch_utils import FC
+from .mlp import MLP
 
 
 class ProposalLayer(nn.Module):
@@ -15,11 +15,7 @@ class ProposalLayer(nn.Module):
         self.cfg = cfg
 
     def build_mlp(self, cfg):
-        """TODO: Ensure no batch norm or activation in regression."""
-        mlp = nn.Sequential(
-            FC(*cfg.PROPOSAL.MLPS[0:2]),
-            FC(*cfg.PROPOSAL.MLPS[1:3]),
-        )
+        mlp = MLP(cfg.PROPOSAL.MLPS, bias=True, bn=False, relu=[True, False])
         return mlp
 
     def forward(self, points, features):

@@ -3,7 +3,8 @@ import torch
 from torch import nn
 
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
-from pointnet2.pytorch_utils import FC
+
+from .mlp import MLP
 
 
 class RoiGridPool(nn.Module):
@@ -24,10 +25,7 @@ class RoiGridPool(nn.Module):
         return pnet
 
     def build_reduction(self, cfg):
-        reduction = nn.Sequential(
-            FC(*cfg.GRIDPOOL.MLPS_REDUCTION[0:2]),
-            FC(*cfg.GRIDPOOL.MLPS_REDUCTION[1:3]),
-        )
+        reduction = MLP(cfg.GRIDPOOL.MLPS_REDUCTION)
         return reduction
 
     def rotate_z(self, points, theta):
