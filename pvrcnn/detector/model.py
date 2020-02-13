@@ -9,12 +9,11 @@ import spconv
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
-from pvrcnn.config import cfg
-from pvrcnn.bev import BEVFeatureGatherer
-from pvrcnn.roi_grid_pool import RoiGridPool
-from pvrcnn.backbone import SparseCNN, VoxelFeatureExtractor
-from pvrcnn.proposal import ProposalLayer
-from pvrcnn.refinement import RefinementLayer
+from .bev import BEVFeatureGatherer
+from .roi_grid_pool import RoiGridPool
+from .backbone import SparseCNN, VoxelFeatureExtractor
+from .proposal import ProposalLayer
+from .refinement import RefinementLayer
 
 
 class PV_RCNN(nn.Module):
@@ -148,19 +147,3 @@ class PV_RCNN(nn.Module):
         pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
         predictions, scores_detections = self.refinement_layer(proposals, pooled_features)
         return predictions
-
-
-def make_points(n, cfg):
-    points = np.random.uniform(
-        0, 50, size=(n, cfg.C_IN)).astype(np.float32)
-    return points
-
-
-def main():
-    net = PV_RCNN(cfg).cuda()
-    points = [make_points(95000, cfg), make_points(90000, cfg)]
-    out = net(points)
-
-
-if __name__ == '__main__':
-    main()

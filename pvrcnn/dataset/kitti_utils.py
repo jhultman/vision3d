@@ -25,7 +25,6 @@ SOFTWARE.
 """
 
 import numpy as np
-import os
 
 
 class Object3d(object):

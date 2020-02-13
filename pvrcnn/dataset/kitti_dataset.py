@@ -2,10 +2,10 @@ from tqdm import tqdm
 import pickle
 import numpy as np
 from copy import deepcopy
-from pvrcnn.dataset.kitti import read_calib, read_label, read_velo
 import os.path as osp
-
 from torch.utils.data import Dataset
+
+from .kitti_utils import read_calib, read_label, read_velo
 
 
 class KittiDataset(Dataset):
