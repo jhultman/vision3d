@@ -53,6 +53,25 @@ _C.DATA.CACHEDIR = '../data/cache/'
 _C.DATA.SPLITDIR = '../data/splitfiles/'
 _C.DATA.ROOTDIR = '../data/kitti/training/'
 
+# Classes
+_C.ANCHORS = [
+    {
+        'names': ['Car', 'Van'],
+        'wlh': [1.6, 3.9, 1.4],
+        'radius': 2.0
+    },
+    {
+        'names': ['Pedestrian', 'Person_sitting'],
+        'wlh': [0.8, 1.6, 0.8],
+        'radius': 1.0
+    },
+    {
+        'names': ['Cyclist'],
+        'wlh': [0.8, 1.6, 1.6],
+        'radius': 1.0
+    },
+]
+
 # Train
 _C.TRAIN = CN()
 _C.TRAIN.LR = 1e-4

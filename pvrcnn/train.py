@@ -25,6 +25,7 @@ def train_model(model, dataloader, optimizer, epochs):
     model.train()
     for epoch in range(epochs):
         for item in dataloader:
+            out = model(item)
             pass
 
 

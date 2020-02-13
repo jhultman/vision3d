@@ -4,6 +4,26 @@ from torch import nn
 from .mlp import MLP
 
 
+class ProposalLoss(nn.Module):
+
+    def __init__(self, cfg):
+        super(ProposalLoss, self).__init__()
+        self.cfg = cfg
+        self.anchors = self.cfg.ANCHORS
+
+    def compute_label(self, predictions, boxes, class_idx, mask):
+        """
+        predictions of shape (B, N, D)
+        groundtruth of shape (B, M, D)
+        """
+        center_pred, center_true = predictions[..., 0:3], boxes[..., 0:3]
+        wlh_pred, wlh_true = predictions[..., 3:6], boxes[..., 3:6]
+        yaw_pred, yaw_true = predictions[..., 6:7], boxes[..., 6:7]
+
+    def __call__(self, predictions, boxes, class_idx, mask):
+        raise NotImplementedError
+
+
 class ProposalLayer(nn.Module):
     """
     Use keypoint features to generate 3D box proposals.

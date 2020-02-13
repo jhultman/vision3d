@@ -1,6 +1,6 @@
 import numpy as np
 
-from pvrcnn.core import cfg
+from pvrcnn.core import cfg, Preprocessor
 from pvrcnn.detector import PV_RCNN
 
 
@@ -11,7 +11,8 @@ def make_points(n, cfg):
 
 
 def main():
-    net = PV_RCNN(cfg).cuda()
+    preprocessor = Preprocessor(cfg)
+    net = PV_RCNN(cfg, preprocessor).cuda()
     points = [make_points(95000, cfg), make_points(90000, cfg)]
     out = net(points)
 
