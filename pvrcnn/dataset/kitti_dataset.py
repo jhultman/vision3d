@@ -16,6 +16,9 @@ class KittiDataset(Dataset):
         self.load_annotations(cfg)
         self.cfg = cfg
 
+    def __len__(self):
+        return len(self.inds)
+
     def read_splitfile(self, cfg):
         fpath = osp.join(cfg.DATA.SPLITDIR, f'{self.split}.txt')
         self.inds = np.loadtxt(fpath, dtype=np.int32).tolist()
