@@ -11,7 +11,6 @@ from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
 from pvrcnn.config import cfg
 from pvrcnn.bev import BEVFeatureGatherer
-from pvrcnn.data_classes import Boxes3D
 from pvrcnn.roi_grid_pool import RoiGridPool
 from pvrcnn.backbone import SparseCNN, VoxelFeatureExtractor
 from pvrcnn.proposal import ProposalLayer
@@ -134,6 +133,7 @@ class PV_RCNN(nn.Module):
     def forward(self, points):
         """
         TODO: Document intermediate tensor shapes.
+        TODO: Use dicts or struct to group elements.
         """
         batch_size = len(points)
         point_lengths = [len(p) for p in points]
@@ -144,9 +144,9 @@ class PV_RCNN(nn.Module):
         pnet_out = self.pnet_forward(cnn_out, keypoints_xyz)
         bev_out = self.bev_gatherer(final_volume, keypoints_xyz)
         features = torch.cat(pnet_out + [bev_out], dim=1)
-        proposals = self.proposal_layer(keypoints_xyz, features)
+        proposals, scores_proposal = self.proposal_layer(keypoints_xyz, features)
         pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
-        predictions = self.refinement_layer(proposals, pooled_features)
+        predictions, scores_detections = self.refinement_layer(proposals, pooled_features)
         return predictions
 
 
@@ -156,23 +156,7 @@ def make_points(n, cfg):
     return points
 
 
-def time_forward():
-    import time
-    net = PV_RCNN(cfg).cuda()
-    torch.cuda.synchronize()
-    ntrials = 10
-    t = time.time()
-    with torch.no_grad():
-        for i in range(ntrials):
-            points = [make_points(95000, cfg), make_points(90000, cfg)]
-            out = net(points)
-    torch.cuda.synchronize()
-    avg_time = (time.time() - t) / ntrials
-    print(f'Time: {avg_time:.04f} (ms), {ntrials} trials')
-
-
 def main():
-    time_forward()
     net = PV_RCNN(cfg).cuda()
     points = [make_points(95000, cfg), make_points(90000, cfg)]
     out = net(points)

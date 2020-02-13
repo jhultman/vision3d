@@ -13,6 +13,7 @@ Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192): Point-Vox
 - [x] SECOND backbone (SpMiddleFHD)
 - [x] Proposal layer
 - [x] Refinement layer
+- [x] KITTI dataset
 - [ ] Predicted keypoint weighting
 - [ ] IOU-Net
 - [ ] Training

@@ -3,8 +3,6 @@ from torch import nn
 
 from pointnet2.pytorch_utils import FC
 
-from pvrcnn.data_classes import Boxes3D
-
 
 class RefinementLayer(nn.Module):
     """
@@ -26,9 +24,9 @@ class RefinementLayer(nn.Module):
 
     def apply_refinements(self, refinements, proposals):
         """TODO: Use proper box encoding."""
-        return Boxes3D(refinements + proposals)
+        return refinements + proposals
 
     def forward(self, proposals, features):
         refinements = self.mlp(features)
-        predictions = self.apply_refinements(refinements, proposals.tensor)
-        return predictions
+        predictions = self.apply_refinements(refinements[..., :-1], proposals)
+        return predictions, predictions[..., -1]

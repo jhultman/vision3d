@@ -1,6 +1,7 @@
 Pointnet2.PyTorch/*
 spconv/*
 torchsearchsorted/*
+data/*
 
 pythonpath.sh
 *.bin

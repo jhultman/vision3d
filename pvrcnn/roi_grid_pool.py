@@ -51,11 +51,12 @@ class RoiGridPool(nn.Module):
         Generate gridpoints within object proposals.
         :return FloatTensor of shape (nb, ng, 3)
         """
-        b, n, _ = proposals.tensor.shape
+        b, n, _ = proposals.shape
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
-        device = proposals.tensor.device
-        gridpoints = torch.rand((b, n, m, 3), device=device) * proposals.wlh[:, :, None,]
-        gridpoints = self.rotate_z(gridpoints, proposals.yaw) + proposals.center[:, :, None]
+        gridpoints = torch.rand((b, n, m, 3), device=proposals.device) * \
+            proposals[:, :, None, 3:6]
+        gridpoints = self.rotate_z(gridpoints, proposals[..., -1]) + \
+            proposals[:, :, None, 0:3]
         return gridpoints
 
     def forward(self, proposals, keypoint_xyz, keypoint_features):
@@ -63,7 +64,7 @@ class RoiGridPool(nn.Module):
         Gather features from within proposals.
         TODO: Ensure gridpoint features are reduced correctly.
         """
-        b, n, _ = proposals.tensor.shape
+        b, n, _ = proposals.shape
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
         gridpoints = self.sample_gridpoints(proposals)
         gridpoints = gridpoints.view(b, -1, 3)

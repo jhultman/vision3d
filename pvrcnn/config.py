@@ -47,4 +47,10 @@ _C.PROPOSAL.TOPK = 100
 _C.REFINEMENT = CN()
 _C.REFINEMENT.MLPS = [256, 128, 8]
 
+# Dataset
+_C.DATA = CN()
+_C.DATA.CACHEDIR = '../data/cache/'
+_C.DATA.SPLITDIR = '../data/splitfiles/'
+_C.DATA.ROOTDIR = '../data/kitti/training/'
+
 cfg = _C

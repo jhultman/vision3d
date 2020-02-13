@@ -55,18 +55,15 @@ class Object3d(object):
         self.dis_to_cam = np.linalg.norm(self.t)
         self.ry = data[14] # yaw angle (around Y-axis in camera coordinates) [-pi..pi]
         self.score = data[15] if data.__len__() == 16 else -1.0
-        self.level_str = None
         self.level = self.get_obj_level()
 
     def cls_type_to_id(self, cls_type):
-        # Car and Van ==> Car class
-        # Pedestrian and Person_Sitting ==> Pedestrian Class
         CLASS_NAME_TO_ID = {
-            "Car": 				0,
-            "Pedestrian": 		1,
-            "Cyclist": 			2,
-            "Van": 				0,
-            "Person_sitting": 	1
+            "Car": 1,
+            "Van": 1,
+            "Pedestrian": 2,
+            "Person_sitting": 2,
+            "Cyclist": 3,
         }
         if cls_type not in CLASS_NAME_TO_ID.keys():
             return -1

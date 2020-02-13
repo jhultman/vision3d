@@ -3,8 +3,6 @@ from torch import nn
 
 from pointnet2.pytorch_utils import FC
 
-from pvrcnn.data_classes import Boxes3D
-
 
 class ProposalLayer(nn.Module):
     """
@@ -26,8 +24,8 @@ class ProposalLayer(nn.Module):
 
     def forward(self, points, features):
         features = features.permute(0, 2, 1)
-        proposals = Boxes3D(self.mlp(features))
-        _, indices = torch.topk(proposals.score, k=self.cfg.PROPOSAL.TOPK, dim=1)
-        indices = indices.expand(-1, -1, proposals.tensor.shape[-1])
-        proposals = Boxes3D(proposals.tensor.gather(1, indices))
-        return proposals
+        proposals = self.mlp(features)
+        _, indices = torch.topk(proposals[..., -1:], k=self.cfg.PROPOSAL.TOPK, dim=1)
+        indices = indices.expand(-1, -1, proposals.shape[-1])
+        proposals = proposals.gather(1, indices)
+        return proposals[..., :-1], proposals[..., -1]
