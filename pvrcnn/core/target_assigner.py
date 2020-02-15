@@ -13,14 +13,18 @@ class TargetAssigner(nn.Module):
         self.anchor_sizes = torch.tensor(anchor_sizes).float()
         self.anchor_radii = torch.tensor(anchor_radii).float()
 
-    def mask_batch_correspondence(self, distances, box_counts, mask_val):
+    def batch_correspondence_mask(self, box_counts, device):
         """
         Trick to ensure boxes not matched to wrong batch index.
         """
         num_boxes, batch_size = sum(box_counts), len(box_counts)
+        box_inds = torch.arange(num_boxes)
         box_batch_inds = torch.repeat_interleave(
             torch.arange(batch_size), torch.LongTensor(box_counts))
-        distances[box_batch_inds, :, torch.arange(num_boxes)] = mask_val
+        mask = torch.full((batch_size, 1, num_boxes),
+            False, dtype=torch.bool, device=device)
+        mask[box_batch_inds, :, box_inds] = True
+        return mask
 
     def assign_proposal(self, input_dict):
         """
@@ -45,14 +49,14 @@ class TargetAssigner(nn.Module):
 
         box_centers, box_sizes, box_angles = torch.split(boxes, [3, 3, 1], dim=-1)
         distances = torch.norm(keypoints[:, :, None, :] - box_centers, dim=-1)
-        self.mask_batch_correspondence(distances, box_counts, anchor_radii.max())
-
         in_radius = distances < anchor_radii[class_ids]
+        in_radius &= self.batch_correspondence_mask(box_counts, device)
+
         i, j, k = in_radius.nonzero().t()
         k = class_ids[k]
 
         B, N, _ = keypoints.shape
-        targets_cls = torch.zeros((B, N, self.num_classes), dtype=torch.uint8, device=device)
+        targets_cls = torch.zeros((B, N, self.num_classes), dtype=torch.bool, device=device)
         targets_reg = torch.zeros((B, N, self.num_classes, 7), dtype=torch.float32, device=device)
         targets_cls[i, j, k] = 1
         targets_cls[..., -1] = ~(targets_cls[..., :-1]).any(-1)
