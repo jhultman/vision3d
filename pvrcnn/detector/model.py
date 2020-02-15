@@ -65,12 +65,12 @@ class PV_RCNN(nn.Module):
             pnet_out += [out]
         return pnet_out
 
-    def forward(self, points):
+    def forward(self, input_dict):
         """
         TODO: Document intermediate tensor shapes.
         TODO: Use dicts or struct to group elements.
         """
-        input_dict = self.preprocessor(points)
+        input_dict = self.preprocessor(input_dict)
         features = self.vfe(input_dict['features'], input_dict['occupancy'])
         coordinates, batch_size = input_dict['coordinates'], input_dict['batch_size']
         keypoints_xyz, points = input_dict['keypoints'], input_dict['points']

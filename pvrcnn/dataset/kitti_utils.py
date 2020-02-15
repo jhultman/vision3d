@@ -58,11 +58,11 @@ class Object3d(object):
 
     def cls_type_to_id(self, cls_type):
         CLASS_NAME_TO_ID = {
-            "Car": 1,
-            "Van": 1,
-            "Pedestrian": 2,
-            "Person_sitting": 2,
-            "Cyclist": 3,
+            "Car": 0,
+            "Van": 0,
+            "Pedestrian": 1,
+            "Person_sitting": 1,
+            "Cyclist": 2,
         }
         if cls_type not in CLASS_NAME_TO_ID.keys():
             return -1

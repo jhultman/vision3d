@@ -107,8 +107,11 @@ class TrainPreprocessor(Preprocessor):
         Regression and class targets are one-hot encoded (per-anchor predictions)
 
         TODO: Refactor so can reuse for refinement target assignment.
+        TODO: Ensure no keypoint assigned to multiple boxes.
+        NOTE: num_classes includes background class
+        NOTE: background class is encoded as last index of class dimension.
         """
-        num_classes = len(self.cfg.ANCHORS)
+        num_classes = len(self.cfg.ANCHORS) + 1
         box_counts = [b.shape[0] for b in input_dict['boxes']]
         boxes = torch.cat(input_dict['boxes'], dim=0)
         class_ids = torch.cat(input_dict['class_ids'], dim=0)
@@ -130,8 +133,9 @@ class TrainPreprocessor(Preprocessor):
         targets_cls = torch.zeros((B, N, num_classes), dtype=torch.uint8).to(device)
         targets_reg = torch.zeros((B, N, num_classes, 7), dtype=torch.float32).to(device)
         targets_cls[i, j, k] = 1
+        targets_cls[..., -1] = ~(targets_cls[..., :-1]).any(-1)
         targets_reg[i, j, k, 0:3] = keypoints[i, j] - box_centers[k]
-        targets_reg[i, j, k, 3:6] = box_sizes[class_ids[k]] / anchor_sizes[k]
+        targets_reg[i, j, k, 3:6] = box_sizes[k] / anchor_sizes[k]
         targets_reg[i, j, k, 6:7] = box_angles[k]
         return dict(proposal_cls=targets_cls, proposal_reg=targets_reg)
 
