@@ -87,7 +87,16 @@ class Preprocessor(nn.Module):
         return input_dict
 
 
-class TrainPreprocessor(Preprocessor):
+class TargetAssigner(nn.Module):
+
+    def __init__(self, cfg):
+        super(TargetAssigner, self).__init__()
+        self.cfg = cfg
+        self.num_classes = len(self.cfg.ANCHORS) + 1
+        anchor_sizes = [anchor['wlh'] for anchor in self.cfg.ANCHORS]
+        anchor_radii = [anchor['radius'] for anchor in self.cfg.ANCHORS]
+        self.anchor_sizes = torch.tensor(anchor_sizes).float()
+        self.anchor_radii = torch.tensor(anchor_radii).float()
 
     def mask_batch_correspondence(self, distances, box_counts, mask_val):
         """
@@ -111,15 +120,13 @@ class TrainPreprocessor(Preprocessor):
         NOTE: num_classes includes background class
         NOTE: background class is encoded as last index of class dimension.
         """
-        num_classes = len(self.cfg.ANCHORS) + 1
         box_counts = [b.shape[0] for b in input_dict['boxes']]
         boxes = torch.cat(input_dict['boxes'], dim=0)
         class_ids = torch.cat(input_dict['class_ids'], dim=0)
         keypoints = input_dict['keypoints']
         device = keypoints.device
-
-        anchor_sizes = torch.tensor([anchor['wlh'] for anchor in self.cfg.ANCHORS]).float().to(device)
-        anchor_radii = torch.tensor([anchor['radius'] for anchor in self.cfg.ANCHORS]).float().to(device)
+        anchor_sizes = self.anchor_sizes.to(device)
+        anchor_radii = self.anchor_radii.to(device)
 
         box_centers, box_sizes, box_angles = torch.split(boxes, [3, 3, 1], dim=-1)
         distances = torch.norm(keypoints[:, :, None, :] - box_centers, dim=-1)
@@ -130,20 +137,32 @@ class TrainPreprocessor(Preprocessor):
         k = class_ids[k]
 
         B, N, _ = keypoints.shape
-        targets_cls = torch.zeros((B, N, num_classes), dtype=torch.uint8).to(device)
-        targets_reg = torch.zeros((B, N, num_classes, 7), dtype=torch.float32).to(device)
+        targets_cls = torch.zeros((B, N, self.num_classes), dtype=torch.uint8, device=device)
+        targets_reg = torch.zeros((B, N, self.num_classes, 7), dtype=torch.float32, device=device)
         targets_cls[i, j, k] = 1
         targets_cls[..., -1] = ~(targets_cls[..., :-1]).any(-1)
         targets_reg[i, j, k, 0:3] = keypoints[i, j] - box_centers[k]
         targets_reg[i, j, k, 3:6] = box_sizes[k] / anchor_sizes[k]
         targets_reg[i, j, k, 6:7] = box_angles[k]
-        return dict(proposal_cls=targets_cls, proposal_reg=targets_reg)
+        targets = dict(proposal_cls=targets_cls, proposal_reg=targets_reg)
+        return targets
 
     def forward(self, input_dict):
         """
         TODO: Assign refinement targets.
         """
+        input_dict.update(self.assign_proposal(input_dict))
+        return input_dict
+
+
+class TrainPreprocessor(Preprocessor):
+
+    def __init__(self, cfg):
+        super(TrainPreprocessor, self).__init__(cfg)
+        self.target_assigner = TargetAssigner(cfg)
+
+    def forward(self, input_dict):
         input_dict.update(self.voxelize(input_dict['points']))
         input_dict['keypoints'] = self.sample_keypoints(input_dict['points'])
-        input_dict.update(self.assign_proposal(input_dict))
+        input_dict = self.target_assigner(input_dict)
         return input_dict

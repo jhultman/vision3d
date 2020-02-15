@@ -34,5 +34,5 @@ class BEVFeatureGatherer(nn.Module):
         N, C, D, H, W = volume.shape
         volume = volume.view(N, C * D, H, W)
         indices = self.compute_bev_indices(keypoint_xyz, H, W)
-        features = F.grid_sample(volume, indices).squeeze(2)
+        features = F.grid_sample(volume, indices, align_corners=True).squeeze(2)
         return features

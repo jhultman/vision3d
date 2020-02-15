@@ -23,11 +23,11 @@ Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192): Point-Vox
 ## Installation
 
 Tested in environment:
-- CUDA 10.0
-- torch 1.0
 - Conda
+- torch 1.4
+- CUDA 10.1
 - Ubuntu 18.04
-- Python 3.6
+- Python 3.7
 
 1. Installing Pointnet2:
 ```
@@ -36,11 +36,10 @@ cd Pointnet2.PyTorch && python setup.py install
 export PYTHONPATH=$PYTHONPATH:/path/to/Pointnet2.PyTorch/
 ```
 
-2. Installing spconv:
+2. Installing patched spconv:
 ```
-git clone https://github.com/traveller59/spconv.git --recursive
-cd spconv && git checkout 7342772
-python setup.py bdist_wheel
+git clone https://github.com/jhultman/spconv.git --recursive
+cd spconv && python setup.py bdist_wheel
 cd ./dist && pip install *.whl
 ```
 
