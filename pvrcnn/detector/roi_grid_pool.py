@@ -46,7 +46,8 @@ class RoiGridPool(nn.Module):
 
     def sample_gridpoints(self, proposals):
         """
-        Generate gridpoints within object proposals.
+        Generate gridpoints within axis-aligned
+        object proposals then rotate about z-axis.
         :return FloatTensor of shape (nb, ng, 3)
         """
         b, n, _ = proposals.shape

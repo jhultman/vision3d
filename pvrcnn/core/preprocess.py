@@ -75,13 +75,14 @@ class Preprocessor(nn.Module):
             - fps returns indices shape (B, K)
             - gather expects features shape (B, C, N)
         """
-        points = points[..., :3].transpose(1, 2).contiguous()
+        points = points[..., :3].contiguous()
         indices = furthest_point_sample(points, self.cfg.NUM_KEYPOINTS)
-        keypoints = gather_operation(points, indices).transpose(1, 2).contiguous()
+        keypoints = gather_operation(points.transpose(1, 2).contiguous(), indices)
+        keypoints = keypoints.transpose(1, 2).contiguous()
         return keypoints
 
-    def forward(self, points):
-        input_dict = self.voxelize(points)
+    def forward(self, input_dict):
+        input_dict.update(self.voxelize(input_dict['points']))
         input_dict['keypoints'] = self.sample_keypoints(input_dict['points'])
         return input_dict
 

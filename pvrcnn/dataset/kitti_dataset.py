@@ -30,7 +30,7 @@ class KittiDataset(Dataset):
         print('Reading cached annotations...')
         with open(fpath, 'rb') as f:
             self.annotations = pickle.load(f)
-        print('Done loading annotations.')
+        print('Done.')
         return True
 
     def cache_annotations(self, cfg):
@@ -53,7 +53,7 @@ class KittiDataset(Dataset):
         self.annotations = dict()
         for idx in tqdm(self.inds):
             self.annotations[idx] = self.create_anno(idx, cfg)
-        print('Done loading annotations.')
+        print('Done.')
         self.cache_annotations(cfg)
 
     def make_simple_object(self, obj, calib):
