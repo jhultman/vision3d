@@ -89,5 +89,57 @@ class Preprocessor(nn.Module):
 
 class TrainPreprocessor(Preprocessor):
 
-    def assign_targets(self, input_dict):
-        raise NotImplementedError
+    def mask_batch_correspondence(self, distances, box_counts, mask_val):
+        """
+        Trick to ensure boxes not matched to wrong batch index.
+        """
+        num_boxes, batch_size = sum(box_counts), len(box_counts)
+        box_batch_inds = np.repeat(np.arange(batch_size), box_counts)
+        box_batch_inds = torch.from_numpy(box_batch_inds).long()
+        distances[box_batch_inds, :, torch.arange(num_boxes)] = mask_val
+
+    def assign_proposal(self, input_dict):
+        """
+        Simple target assignment algorithm based on Sparse-to-Dense
+        Keypoints considered positive if within category-specific
+        max spherical radius of box center.
+
+        Regression and class targets are one-hot encoded (per-anchor predictions)
+
+        TODO: Refactor so can reuse for refinement target assignment.
+        """
+        num_classes = len(self.cfg.ANCHORS)
+        box_counts = [b.shape[0] for b in input_dict['boxes']]
+        boxes = torch.cat(input_dict['boxes'], dim=0)
+        class_ids = torch.cat(input_dict['class_ids'], dim=0)
+        keypoints = input_dict['keypoints']
+        device = keypoints.device
+
+        anchor_sizes = torch.tensor([anchor['wlh'] for anchor in self.cfg.ANCHORS]).float().to(device)
+        anchor_radii = torch.tensor([anchor['radius'] for anchor in self.cfg.ANCHORS]).float().to(device)
+
+        box_centers, box_sizes, box_angles = torch.split(boxes, [3, 3, 1], dim=-1)
+        distances = torch.norm(keypoints[:, :, None, :] - box_centers, dim=-1)
+        self.mask_batch_correspondence(distances, box_counts, anchor_radii.max())
+
+        in_radius = distances < anchor_radii[class_ids]
+        i, j, k = in_radius.nonzero().t()
+        k = class_ids[k]
+
+        B, N, _ = keypoints.shape
+        targets_cls = torch.zeros((B, N, num_classes), dtype=torch.uint8).to(device)
+        targets_reg = torch.zeros((B, N, num_classes, 7), dtype=torch.float32).to(device)
+        targets_cls[i, j, k] = 1
+        targets_reg[i, j, k, 0:3] = keypoints[i, j] - box_centers[k]
+        targets_reg[i, j, k, 3:6] = box_sizes[class_ids[k]] / anchor_sizes[k]
+        targets_reg[i, j, k, 6:7] = box_angles[k]
+        return dict(proposal_cls=targets_cls, proposal_reg=targets_reg)
+
+    def forward(self, input_dict):
+        """
+        TODO: Assign refinement targets.
+        """
+        input_dict.update(self.voxelize(input_dict['points']))
+        input_dict['keypoints'] = self.sample_keypoints(input_dict['points'])
+        input_dict.update(self.assign_proposal(input_dict))
+        return input_dict
