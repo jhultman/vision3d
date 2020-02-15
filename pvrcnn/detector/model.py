@@ -65,21 +65,27 @@ class PV_RCNN(nn.Module):
             pnet_out += [out]
         return pnet_out
 
-    def forward(self, input_dict):
+    def feature_extract(self, item):
+        features = self.vfe(item['features'], item['occupancy'])
+        points_split = torch.split(item['points'], [3, 1], dim=-1)
+        cnn_out, final_volume = self.cnn(
+            features, item['coordinates'], item['batch_size'])
+        cnn_out = [points_split] + cnn_out
+        pnet_out = self.pnet_forward(cnn_out, item['keypoints'])
+        bev_out = self.bev_gatherer(final_volume, item['keypoints'])
+        features = torch.cat(pnet_out + [bev_out], dim=1)
+        return features
+
+    def forward(self, item, proposals_only=False):
         """
         TODO: Document intermediate tensor shapes.
-        TODO: Use dicts or struct to group elements.
         """
-        input_dict = self.preprocessor(input_dict)
-        features = self.vfe(input_dict['features'], input_dict['occupancy'])
-        coordinates, batch_size = input_dict['coordinates'], input_dict['batch_size']
-        keypoints_xyz, points = input_dict['keypoints'], input_dict['points']
-        cnn_out, final_volume = self.cnn(features, coordinates, batch_size=batch_size)
-        cnn_out = [torch.split(points, [3, 1], dim=-1)] + cnn_out
-        pnet_out = self.pnet_forward(cnn_out, keypoints_xyz)
-        bev_out = self.bev_gatherer(final_volume, keypoints_xyz)
-        features = torch.cat(pnet_out + [bev_out], dim=1)
+        item = self.preprocessor(item)
+        features = self.feature_extract(item)
+        keypoints_xyz = item['keypoints']
         proposals, scores_proposal = self.proposal_layer(keypoints_xyz, features)
+        if proposals_only:
+            return proposals, scores_proposal
         pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
         predictions, scores_detections = self.refinement_layer(proposals, pooled_features)
         return predictions

@@ -14,6 +14,27 @@ _C.MAX_OCCUPANCY = 5
 _C.VOXEL_SIZE = [0.05, 0.05, 0.1]
 _C.GRID_BOUNDS = [0, -40, -3, 70.4, 40, 1]
 
+# Classes
+_C.ANCHORS = [
+    {
+        'names': ['Car', 'Van'],
+        'wlh': [1.6, 3.9, 1.4],
+        'radius': 2.0
+    },
+    {
+        'names': ['Pedestrian', 'Person_sitting'],
+        'wlh': [0.8, 1.6, 0.8],
+        'radius': 1.0
+    },
+    {
+        'names': ['Cyclist'],
+        'wlh': [0.8, 1.6, 1.6],
+        'radius': 1.0
+    },
+]
+_C.NUM_CLASSES = len(_C.ANCHORS) + 1
+_C.BOX_DOF = 7
+
 # PointSetAbstraction
 _C.PSA = CN()
 _C.PSA.RADII = [
@@ -40,37 +61,18 @@ _C.GRIDPOOL.MLPS_REDUCTION = [_C.GRIDPOOL.NUM_GRIDPOINTS * 192, 256, 256]
 
 # Proposal
 _C.PROPOSAL = CN()
-_C.PROPOSAL.MLPS = [512, 256, 8]
+_C.PROPOSAL.MLPS = [512, 256]
 _C.PROPOSAL.TOPK = 100
 
 # Refinement
 _C.REFINEMENT = CN()
-_C.REFINEMENT.MLPS = [256, 128, 8]
+_C.REFINEMENT.MLPS = [256, 128]
 
 # Dataset
 _C.DATA = CN()
 _C.DATA.CACHEDIR = '../data/cache/'
 _C.DATA.SPLITDIR = '../data/splitfiles/'
 _C.DATA.ROOTDIR = '../data/kitti/training/'
-
-# Classes
-_C.ANCHORS = [
-    {
-        'names': ['Car', 'Van'],
-        'wlh': [1.6, 3.9, 1.4],
-        'radius': 2.0
-    },
-    {
-        'names': ['Pedestrian', 'Person_sitting'],
-        'wlh': [0.8, 1.6, 0.8],
-        'radius': 1.0
-    },
-    {
-        'names': ['Cyclist'],
-        'wlh': [0.8, 1.6, 1.6],
-        'radius': 1.0
-    },
-]
 
 # Train
 _C.TRAIN = CN()

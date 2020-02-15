@@ -13,7 +13,8 @@ class RefinementLayer(nn.Module):
         self.cfg = cfg
 
     def build_mlp(self, cfg):
-        mlp = MLP(cfg.REFINEMENT.MLPS, bias=True, bn=False, relu=[True, False])
+        channels = cfg.REFINEMENT.MLPS + [cfg.NUM_CLASSES * (cfg.BOX_DOF + 1)]
+        mlp = MLP(channels, bias=True, bn=False, relu=[True, False])
         return mlp
 
     def apply_refinements(self, refinements, proposals):
