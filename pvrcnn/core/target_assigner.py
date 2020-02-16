@@ -51,7 +51,7 @@ class TargetAssigner(nn.Module):
         """
         B, N, _ = shape
         targets_cls = torch.zeros(
-            (B, N, self.num_classes + 1), dtype=torch.bool, device=device)
+            (B, N, self.num_classes + 1), dtype=torch.long, device=device)
         targets_cls[..., -1] = 1
         self.fill_negatives(targets_cls)
         self.fill_positives(targets_cls, inds)
@@ -63,7 +63,7 @@ class TargetAssigner(nn.Module):
         B, N, _ = keypoints.shape
         targets_reg = torch.zeros(
             (B, N, self.num_classes, 7), dtype=torch.float32, device=keypoints.device)
-        box_centers, box_sizes, box_angles = torch.split(boxes, [3, 3, 1], dim=-1)
+        box_centers, box_sizes, box_angles = boxes.split([3, 3, 1], dim=-1)
         targets_reg[i, j, k, 0:3] = box_centers[k] - keypoints[i, j]
         targets_reg[i, j, k, 3:6] = (box_sizes[k] - anchor_sizes[k]) / anchor_sizes[k]
         targets_reg[i, j, k, 6:7] = box_angles[k]
@@ -71,7 +71,7 @@ class TargetAssigner(nn.Module):
 
     def match_keypoints(self, boxes, keypoints, anchor_radii, class_ids, box_counts):
         """Find keypoints within spherical radius of ground truth center."""
-        box_centers, box_sizes, box_angles = torch.split(boxes, [3, 3, 1], dim=-1)
+        box_centers, box_sizes, box_angles = boxes.split([3, 3, 1], dim=-1)
         distances = torch.norm(keypoints[:, :, None, :] - box_centers, dim=-1)
         in_radius = distances < anchor_radii[class_ids]
         in_radius &= self.batch_correspondence_mask(box_counts, keypoints.device)
@@ -79,7 +79,7 @@ class TargetAssigner(nn.Module):
 
     def assign_proposal(self, item):
         """
-        Simple target assignment algorithm based on Sparse-to-Dense
+        Simple target assignment algorithm based on Sparse-to-Dense.
         Keypoints considered positive if within category-specific
         max spherical radius of box center.
         TODO: Refactor so can reuse for refinement target assignment.
@@ -89,7 +89,8 @@ class TargetAssigner(nn.Module):
         class_ids = torch.cat(item['class_ids'], dim=0)
         keypoints = item['keypoints']
         device = keypoints.device
-        anchor_sizes, anchor_radii  = self.anchor_sizes.to(device), self.anchor_radii.to(device)
+        anchor_sizes = self.anchor_sizes.to(device)
+        anchor_radii = self.anchor_radii.to(device)
         i, j, k = self.match_keypoints(boxes, keypoints, anchor_radii, class_ids, box_counts)
         inds = (i, j, class_ids[k])
         targets_cls = self.make_cls_targets(inds, keypoints.shape, device)
@@ -99,6 +100,5 @@ class TargetAssigner(nn.Module):
     def forward(self, item):
         """TODO: Assign refinement targets."""
         targets_cls, targets_reg = self.assign_proposal(item)
-        item.update(dict(proposal_cls=targets_cls, proposal_reg=targets_reg))
-        print('Succeeded.')
+        item.update(dict(prop_targets_cls=targets_cls, prop_targets_reg=targets_reg))
         return item

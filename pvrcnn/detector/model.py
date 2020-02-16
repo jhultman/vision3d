@@ -83,9 +83,10 @@ class PV_RCNN(nn.Module):
         item = self.preprocessor(item)
         features = self.feature_extract(item)
         keypoints_xyz = item['keypoints']
-        proposals, scores_proposal = self.proposal_layer(keypoints_xyz, features)
+        proposal_boxes, proposal_scores = self.proposal_layer(keypoints_xyz, features)
         if proposals_only:
-            return proposals, scores_proposal
+            item.update(dict(proposal_boxes=proposal_boxes, proposal_scores=proposal_scores))
+            return item
         pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
         predictions, scores_detections = self.refinement_layer(proposals, pooled_features)
         return predictions

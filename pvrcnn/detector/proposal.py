@@ -5,26 +5,6 @@ import torch.nn.functional as F
 from .mlp import MLP
 
 
-class ProposalLoss(nn.Module):
-
-    def __init__(self, cfg):
-        super(ProposalLoss, self).__init__()
-        self.cfg = cfg
-        self.anchors = self.cfg.ANCHORS
-
-    def compute_label(self, predictions, boxes, class_idx, mask):
-        """
-        predictions of shape (B, N, D)
-        groundtruth of shape (B, M, D)
-        """
-        center_pred, center_true = predictions[..., 0:3], boxes[..., 0:3]
-        wlh_pred, wlh_true = predictions[..., 3:6], boxes[..., 3:6]
-        yaw_pred, yaw_true = predictions[..., 6:7], boxes[..., 6:7]
-
-    def forward(self, predictions, boxes, class_idx, mask):
-        raise NotImplementedError
-
-
 class ProposalLayer(nn.Module):
     """
     Use keypoint features to generate 3D box proposals.
@@ -42,6 +22,7 @@ class ProposalLayer(nn.Module):
 
     def inference(self, points, features):
         boxes, scores = self(points, features)
+        scores = F.softmax(scores, dim=-1)
         _, indices = torch.topk(scores, k=self.cfg.PROPOSAL.TOPK, dim=1)
         scores = scores.gather(1, indices)
         boxes = boxes.gather(1, indices.expand(-1, -1, boxes.shape[-1]))
@@ -57,5 +38,4 @@ class ProposalLayer(nn.Module):
         features = features.permute(0, 2, 1)
         proposals = self.mlp(features)
         boxes, scores = self.reorganize_proposals(proposals)
-        scores = F.softmax(scores, dim=-1)
         return boxes, scores

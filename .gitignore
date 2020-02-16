@@ -5,6 +5,7 @@ data/*
 
 pythonpath.sh
 *.bin
+*.pth
 
 build/*
 dist/*
