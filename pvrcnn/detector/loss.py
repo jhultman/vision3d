@@ -50,4 +50,5 @@ class ProposalLoss(nn.Module):
         cls_loss = self.cls_loss(G_cls, pred_cls, mask_cls.squeeze(-1))
         reg_loss = self.reg_loss(targets_reg, pred_reg, 1 - G_cls[..., -1:, None])
         loss = cls_loss + self.cfg.TRAIN.LAMBDA * reg_loss
-        return loss
+        losses = dict(cls_loss=cls_loss, reg_loss=reg_loss, loss=loss)
+        return losses
