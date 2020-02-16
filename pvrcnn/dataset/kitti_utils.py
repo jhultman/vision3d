@@ -27,6 +27,22 @@ SOFTWARE.
 import numpy as np
 
 
+def read_label(label_filename):
+    lines = [line.rstrip() for line in open(label_filename)]
+    objects = [Object3d(line) for line in lines]
+    return objects
+
+
+def read_velo(velo_filename):
+    scan = np.fromfile(velo_filename, dtype=np.float32)
+    scan = scan.reshape((-1, 4))
+    return scan
+
+
+def read_calib(calib_filename):
+    return Calibration(calib_filename)
+
+
 class Object3d(object):
     """ 3d object label """
     def __init__(self, label_file_line):
@@ -50,7 +66,7 @@ class Object3d(object):
         self.h = data[8] # box height
         self.w = data[9] # box width
         self.l = data[10] # box length (in meters)
-        self.t = (data[11],data[12],data[13]) # location (x,y,z) in camera coord.
+        self.t = (data[11], data[12] - self.h / 2, data[13]) # location (x,y,z) in camera coord.
         self.dis_to_cam = np.linalg.norm(self.t)
         self.ry = data[14] # yaw angle (around Y-axis in camera coordinates) [-pi..pi]
         self.score = data[15] if data.__len__() == 16 else -1.0
@@ -161,19 +177,3 @@ class Calibration(object):
     def project_velo_to_rect(self, pts_3d_velo):
         pts_3d_ref = self.project_velo_to_ref(pts_3d_velo)
         return self.project_ref_to_rect(pts_3d_ref)
-
-
-def read_label(label_filename):
-    lines = [line.rstrip() for line in open(label_filename)]
-    objects = [Object3d(line) for line in lines]
-    return objects
-
-
-def read_velo(velo_filename):
-    scan = np.fromfile(velo_filename, dtype=np.float32)
-    scan = scan.reshape((-1, 4))
-    return scan
-
-
-def read_calib(calib_filename):
-    return Calibration(calib_filename)
