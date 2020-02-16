@@ -23,7 +23,9 @@ class ProposalLayer(nn.Module):
     def inference(self, points, features):
         boxes, scores = self(points, features)
         scores = F.softmax(scores, dim=-1)
-        _, indices = torch.topk(scores, k=self.cfg.PROPOSAL.TOPK, dim=1)
+        positive = 1 - scores[..., -1:]
+        _, indices = torch.topk(positive, k=self.cfg.PROPOSAL.TOPK, dim=1)
+        indices = indices.expand(-1, -1, self.cfg.NUM_CLASSES)
         box_indices = indices[..., None].expand(-1, -1, -1, self.cfg.BOX_DOF)
         scores = scores.gather(1, indices)
         boxes = boxes.gather(1, box_indices)
