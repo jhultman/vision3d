@@ -24,9 +24,10 @@ class ProposalLayer(nn.Module):
         boxes, scores = self(points, features)
         scores = F.softmax(scores, dim=-1)
         _, indices = torch.topk(scores, k=self.cfg.PROPOSAL.TOPK, dim=1)
+        box_indices = indices[..., None].expand(-1, -1, -1, self.cfg.BOX_DOF)
         scores = scores.gather(1, indices)
-        boxes = boxes.gather(1, indices.expand(-1, -1, boxes.shape[-1]))
-        return boxes, scores
+        boxes = boxes.gather(1, box_indices)
+        return boxes, scores, indices
 
     def reorganize_proposals(self, proposals):
         B, N, _ = proposals.shape

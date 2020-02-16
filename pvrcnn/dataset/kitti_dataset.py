@@ -27,10 +27,9 @@ class KittiDataset(Dataset):
         fpath = osp.join(cfg.DATA.CACHEDIR, f'{self.split}.pkl')
         if not osp.isfile(fpath):
             return False
-        print('Reading cached annotations...')
+        print('Found cached annotations.')
         with open(fpath, 'rb') as f:
             self.annotations = pickle.load(f)
-        print('Done.')
         return True
 
     def cache_annotations(self, cfg):
@@ -65,22 +64,23 @@ class KittiDataset(Dataset):
         obj = dict(box=box,  cls_id=obj.cls_id)
         return obj
 
+    def stack_boxes(self, item):
+        boxes = np.stack([obj['box'] for obj in item['objects']])
+        class_ids = np.r_[[obj['cls_id'] for obj in item['objects']]]
+        item.update(dict(boxes=boxes, class_ids=class_ids))
+
+    def drop_keys(self, item):
+        for key in ['velo_path', 'objects', 'calib']:
+            item.pop(key)
+
     def filter_bad_boxes(self, item):
-        boxes, class_ids = [], []
-        for obj in item['objects']:
-            if (obj['box'][3:6] <= 0).any():
-                continue
-            if (obj['box'][0:3] <= self.cfg.GRID_BOUNDS[0:3]).any():
-                continue
-            if (obj['box'][0:3] >= self.cfg.GRID_BOUNDS[3:6]).any():
-                continue
-            if obj['cls_id'] == -1:
-                continue
-            boxes += [obj['box']]
-            class_ids += [obj['cls_id']]
-        item['boxes'] = np.stack(boxes, axis=0)
-        item['class_ids'] = np.r_[class_ids]
-        return item
+        xyz, wlh, _ = np.split(item['boxes'], [3, 6], axis=1)
+        class_ids = item['class_ids'][:, None]
+        lower, upper = np.split(self.cfg.GRID_BOUNDS, [3])
+        keep = ((xyz >= lower) & (xyz <= upper) &
+            (class_ids != -1) & (wlh > 0)).all(1)
+        item['boxes'] = item['boxes'][keep]
+        item['class_ids'] = item['class_ids'][keep]
 
     def __getitem__(self, idx):
         idx = self.inds[idx]
@@ -88,7 +88,8 @@ class KittiDataset(Dataset):
         item['points'] = read_velo(item['velo_path'])
         item['objects'] = [self.make_simple_object(
             obj, item['calib']) for obj in item['objects']]
+        self.stack_boxes(item)
         if self.split == 'train':
-            item = self.filter_bad_boxes(item)
-        [item.pop(key) for key in ['velo_path', 'objects', 'calib']]
+            self.filter_bad_boxes(item)
+        self.drop_keys(item)
         return item

@@ -4,11 +4,33 @@ import torch
 from tqdm import tqdm
 from collections import defaultdict
 from torch.utils.data import DataLoader
+from visdom import Visdom
 
 from pvrcnn.detector import ProposalLoss
 from pvrcnn.core import cfg, TrainPreprocessor
 from pvrcnn.dataset import KittiDataset
 from pvrcnn.detector import PV_RCNN
+
+
+class VisdomLinePlotter:
+
+    def __init__(self, env_name='main'):
+        self.viz = Visdom()
+        self.env = env_name
+        self.plots = {}
+
+    def new_plot(self, var_name, split_name, title_name, xlabel, x, y):
+        opts = dict(legend=[split_name], title=title_name, xlabel=xlabel, ylabel=var_name)
+        self.plots[var_name] = self.viz.line(
+            X=np.array([x,x]), Y=np.array([y,y]), env=self.env, opts=opts)
+
+    def plot(self, var_name, split_name, title_name, xlabel, x, y):
+        if var_name not in self.plots:
+            self.new_plot(var_name, split_name, title_name, xlabel, x, y)
+        else:
+            self.viz.line(
+                X=np.array([x]), Y=np.array([y]), env=self.env,
+                win=self.plots[var_name], name=split_name, update='append')
 
 
 def to_cuda(item):
@@ -35,12 +57,13 @@ def build_train_dataloader(cfg):
     return dataloader
 
 
-def save_cpkt(model, optimizer, epoch):
+def save_cpkt(model, optimizer, epoch, meta=None):
     fpath = f'./epoch_{epoch}.pth'
     ckpt = dict(
         state_dict=model.state_dict(),
         optimizer=optimizer.state_dict(),
         epoch=epoch,
+        meta=meta,
     )
     torch.save(ckpt, fpath)
 
@@ -57,12 +80,20 @@ def load_ckpt(fpath, model, optimizer):
 
 def train_model(model, dataloader, optimizer, loss_fn, epochs, start_epoch=0):
     model.train()
+    total_step = 0
     for epoch in range(start_epoch, epochs):
-        for item in tqdm(dataloader):
+        total_loss = 0
+        for step, item in enumerate(tqdm(dataloader)):
+            optimizer.zero_grad()
             out = model(item, proposals_only=True)
             loss = loss_fn(out)
             loss.backward()
             optimizer.step()
+            total_loss += loss.item()
+            total_step += 1
+            if (step % 100) == 0:
+                plotter.plot('step_loss', 'train', 'Step Loss', 'step', total_step, total_loss / (step + 1))
+        plotter.plot('epoch_loss', 'train', 'Epoch Loss', 'epoch', epoch, total_loss / (step + 1))
         save_cpkt(model, optimizer, epoch)
 
 
@@ -86,4 +117,6 @@ def main():
 
 
 if __name__ == '__main__':
+    global plotter
+    plotter = VisdomLinePlotter(env_name='training')
     main()
