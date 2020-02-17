@@ -5,14 +5,9 @@ from typing import List
 from collections import defaultdict
 
 import spconv
-from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
 
 class Preprocessor(nn.Module):
-
-    """
-    TODO: Move keypoint sampling back to model.
-    """
 
     def __init__(self, cfg):
         super(Preprocessor, self).__init__()
@@ -72,22 +67,8 @@ class Preprocessor(nn.Module):
         input_dict['batch_size'] = len(points)
         return input_dict
 
-    def sample_keypoints(self, points):
-        """
-        Sample keypoints from raw pointcloud.
-            - fps expects points shape (B, N, 3)
-            - fps returns indices shape (B, K)
-            - gather expects features shape (B, C, N)
-        """
-        points = points[..., :3].contiguous()
-        indices = furthest_point_sample(points, self.cfg.NUM_KEYPOINTS)
-        keypoints = gather_operation(points.transpose(1, 2).contiguous(), indices)
-        keypoints = keypoints.transpose(1, 2).contiguous()
-        return keypoints
-
     def forward(self, input_dict):
         input_dict.update(self.voxelize(input_dict['points']))
-        input_dict['keypoints'] = self.sample_keypoints(input_dict['points'])
         return input_dict
 
 

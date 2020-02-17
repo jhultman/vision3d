@@ -13,10 +13,11 @@ def make_points(n, cfg):
 
 def main():
     preprocessor = Preprocessor(cfg)
-    net = PV_RCNN(cfg, preprocessor).cuda().eval()
+    net = PV_RCNN(cfg).cuda().eval()
+    item = dict(points=[make_points(95000, cfg), make_points(90000, cfg)])
     with torch.no_grad():
-        input_dict = dict(points=[make_points(95000, cfg), make_points(90000, cfg)])
-        out = net(input_dict, proposals_only=True)
+        item = preprocessor(item)
+        out = net(item, proposals_only=True)
 
 
 if __name__ == '__main__':

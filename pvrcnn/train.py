@@ -23,7 +23,7 @@ def build_train_dataloader(cfg, preprocessor):
 
 
 def save_cpkt(model, optimizer, epoch, meta=None):
-    fpath = f'./epoch_{epoch}.pth'
+    fpath = f'./ckpts/epoch_{epoch}.pth'
     ckpt = dict(
         state_dict=model.state_dict(),
         optimizer=optimizer.state_dict(),
@@ -59,7 +59,6 @@ def train_model(model, dataloader, optimizer, loss_fn, epochs, start_epoch=0):
             optimizer.step()
             if (step % 50) == 0:
                 update_plot(losses, 'step')
-        update_plot(losses, 'epoch')
         save_cpkt(model, optimizer, epoch)
 
 
@@ -78,7 +77,7 @@ def main():
     dataloader_train = build_train_dataloader(cfg, preprocessor)
     parameters = get_proposal_parameters(model)
     optimizer = torch.optim.Adam(parameters, lr=cfg.TRAIN.LR)
-    start_epoch = load_ckpt('./epoch_0.pth', model, optimizer)
+    start_epoch = load_ckpt('./ckpts/epoch_0.pth', model, optimizer)
     train_model(model, dataloader_train, optimizer, loss_fn, cfg.TRAIN.EPOCHS, start_epoch)
 
 

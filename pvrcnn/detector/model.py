@@ -6,6 +6,7 @@ from torch import nn
 from typing import List
 
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
+from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
 from .bev import BEVFeatureGatherer
 from .roi_grid_pool import RoiGridPool
@@ -48,6 +49,18 @@ class PV_RCNN(nn.Module):
             cfg, self.cnn.voxel_offset, self.cnn.base_voxel_size)
         return bev
 
+    def sample_keypoints(self, points):
+        """
+        fps expects points shape (B, N, 3)
+        fps returns indices shape (B, K)
+        gather expects features shape (B, C, N)
+        """
+        points = points[..., :3].contiguous()
+        indices = furthest_point_sample(points, self.cfg.NUM_KEYPOINTS)
+        keypoints = gather_operation(points.transpose(1, 2).contiguous(), indices)
+        keypoints = keypoints.transpose(1, 2).contiguous()
+        return keypoints
+
     def pointnets(self, cnn_out, keypoint_xyz):
         """
         Call PointNets to gather keypoint features from CNN feature volumes.
@@ -76,6 +89,7 @@ class PV_RCNN(nn.Module):
         """
         TODO: Document intermediate tensor shapes.
         """
+        item['keypoints'] = self.sample_keypoints(item['points'])
         features = self.vfe(item['features'], item['occupancy'])
         cnn_features, bev_map = self.cnn(features, item['coordinates'], item['batch_size'])
         proposal_scores, proposal_boxes = self.proposal_layer(bev_map)
