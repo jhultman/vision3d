@@ -6,8 +6,9 @@ from pvrcnn.detector import PV_RCNN
 
 
 def make_points(n, cfg):
-    points = np.random.uniform(
-        0, 50, size=(n, cfg.C_IN)).astype(np.float32)
+    lower, upper = np.split(cfg.GRID_BOUNDS, [3])
+    points = np.random.rand(n, 3) * (upper - lower) + lower
+    points = np.pad(points, ((0, 0), (0, 1))).astype(np.float32)
     return points
 
 

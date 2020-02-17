@@ -18,18 +18,21 @@ _C.GRID_BOUNDS = [0, -40, -3, 70.4, 40, 1]
 _C.ANCHORS = [
     {
         'names': ['Car', 'Van'],
-        'wlh': [1.6, 3.9, 1.4],
-        'radius': 2.0
+        'wlh': [1.6, 3.9, 1.56],
+        'center_z': -1.0,
+        'radius': 2.0,
     },
     {
         'names': ['Pedestrian', 'Person_sitting'],
-        'wlh': [0.8, 1.6, 0.8],
-        'radius': 1.0
+        'wlh': [0.6, 0.8, 1.73],
+        'center_z': -0.6,
+        'radius': 1.0,
     },
     {
         'names': ['Cyclist'],
-        'wlh': [0.8, 1.6, 1.6],
-        'radius': 1.0
+        'wlh': [0.6, 1.76, 1.73],
+        'center_z': -0.6,
+        'radius': 1.0,
     },
 ]
 _C.NUM_CLASSES = len(_C.ANCHORS) + 1

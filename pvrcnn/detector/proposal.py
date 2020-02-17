@@ -5,7 +5,6 @@ from torch import nn
 class ProposalLayer(nn.Module):
     """
     Use BEV feature map to generate 3D box proposals.
-    TODO: Add orthogonal anchors.
     """
 
     def __init__(self, cfg):
@@ -14,20 +13,18 @@ class ProposalLayer(nn.Module):
         self.cfg = cfg
 
     def build_heads(self, cfg):
-        """Heads for box regression and classification."""
-        self.cls = nn.Conv2d(cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES, 1)
-        self.reg = nn.Conv2d(cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES - 1) * cfg.BOX_DOF, 1)
+        """
+        Heads for box regression and classification.
+        TODO: Add orthogonal anchors.
+        """
+        self.conv_cls = nn.Conv2d(cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES, 1)
+        self.conv_reg = nn.Conv2d(cfg.PROPOSAL.C_IN, cfg.BOX_DOF, 1)
 
     def inference(self, features):
+        """TODO: Topk proposal indexing."""
         raise NotImplementedError
 
-    def reshape_boxes(self, reg_map):
-        N, C, H, W = reg_map.shape
-        reg_map = reg_map.view(N, -1, self.cfg.BOX_DOF, H, W)
-        return reg_map
-
     def forward(self, feature_map):
-        cls_map = self.cls(feature_map)
-        reg_map = self.reg(feature_map)
-        reg_map = self.reshape_boxes(reg_map)
+        cls_map = self.conv_cls(feature_map)
+        reg_map = self.conv_reg(feature_map)
         return cls_map, reg_map

@@ -49,11 +49,18 @@ class ProposalTargetAssigner(nn.Module):
         sizes = sizes.expand(nx, ny, -1, -1)
         return sizes
 
+    def make_anchor_centers(self, meshgrid_params):
+        anchor_z = [anchor['center_z'] for anchor in cfg.ANCHORS]
+        anchor_z = torch.tensor(anchor_z).float()
+        centers = meshgrid_midpoint(*meshgrid_params)
+        centers = centers.expand(-1, -1, self.cfg.NUM_CLASSES - 1, -1)
+        centers[:, :, torch.arange(self.cfg.NUM_CLASSES - 1), 2] = anchor_z
+        return centers
+
     def make_anchors(self):
         (z0, z1, nz) = 1, 1, 1
         (x0, y0), (x1, y1), (nx, ny) = self.compute_grid_params()
-        centers = meshgrid_midpoint((x0, x1, nx), (y0, y1, ny), (z0, z1, nz))
-        centers = centers.expand(-1, -1, self.cfg.NUM_CLASSES - 1, -1)
+        centers = self.make_anchor_centers((x0, x1, nx), (y0, y1, ny), (z0, z1, nz))
         sizes = self.make_anchor_sizes(nx, ny)
         angles = centers.new_zeros((nx, ny, self.cfg.NUM_CLASSES - 1, 1))
         anchors = torch.cat((centers, sizes, angles), dim=-1)
@@ -97,9 +104,10 @@ class ProposalTargetAssigner(nn.Module):
         Standard VoxelNet-style box encoding.
         TODO: Angle binning.
         """
+        H, W, _, _ = self.anchors.shape
         i, j, G_idx, class_idx = inds
         A_idx = (i, j, class_idx)
-        targets_reg = torch.zeros_like(self.anchors)
+        targets_reg = torch.zeros((H, W, self.cfg.BOX_DOF), dtype=torch.float32)
         G_xyz, G_wlh, G_yaw = boxes[G_idx].split([3, 3, 1], -1)
         A_xyz, A_wlh, A_yaw = self.anchors[A_idx].split([3, 3, 1], -1)
         values = torch.cat((
@@ -107,7 +115,7 @@ class ProposalTargetAssigner(nn.Module):
             (G_wlh - A_wlh) / A_wlh,
             (G_yaw - A_yaw)), dim=-1
         )
-        targets_reg[A_idx] = values
+        targets_reg[i, j] = values
         return targets_reg
 
     def get_targets(self, boxes, class_inds):
