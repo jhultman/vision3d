@@ -53,8 +53,8 @@ class ProposalTargetAssigner(nn.Module):
         (z0, z1, nz) = 1, 1, 1
         (x0, y0), (x1, y1), (nx, ny) = self.compute_grid_params()
         centers = meshgrid_midpoint((x0, x1, nx), (y0, y1, ny), (z0, z1, nz))
-        centers = centers.expand(-1, -1, cfg.NUM_CLASSES - 1, -1)
-        sizes = self.make_anchor_sizes(cfg, nx, ny)
+        centers = centers.expand(-1, -1, self.cfg.NUM_CLASSES - 1, -1)
+        sizes = self.make_anchor_sizes(nx, ny)
         angles = centers.new_zeros((nx, ny, self.cfg.NUM_CLASSES - 1, 1))
         anchors = torch.cat((centers, sizes, angles), dim=-1)
         return anchors
@@ -78,12 +78,13 @@ class ProposalTargetAssigner(nn.Module):
         targets_cls[ambiguous][:, :-1] = 0
         targets_cls[ambiguous][:, -1] = 1
 
-    def make_cls_targets(self, inds, H, W):
+    def make_cls_targets(self, inds):
         """
         Note that some negatives will be overwritten by positives.
         Last two indices are background and ignore, respectively.
         Uses one-hot encoding.
         """
+        H, W, _, _ = self.anchors.shape
         targets_cls = torch.zeros((H, W, self.cfg.NUM_CLASSES + 1), dtype=torch.long)
         targets_cls[..., -1] = 1
         self.fill_negatives(targets_cls)
@@ -109,9 +110,8 @@ class ProposalTargetAssigner(nn.Module):
         targets_reg[A_idx] = values
         return targets_reg
 
-    def get_targets(self, item):
+    def get_targets(self, boxes, class_inds):
         # for each bounding box, see if should be assigned to cell i, j
-        boxes, class_inds = item['boxes'], item['class_ids']
         A_xyz, G_xyz = self.anchors[..., :3], boxes[..., :3]
         offset = G_xyz[None, None, :, :] - A_xyz[:, :, class_inds]
         match = offset.norm(dim=-1) < self.anchor_radii[class_inds]
@@ -120,11 +120,10 @@ class ProposalTargetAssigner(nn.Module):
         i, j, box_idx = match.nonzero().t()
         inds = (i, j, box_idx, class_inds[box_idx])
 
-        targets_cls = make_cls_targets(inds)
-        targets_reg = make_reg_targets(inds, boxes)
+        targets_cls = self.make_cls_targets(inds).permute(2, 1, 0)
+        targets_reg = self.make_reg_targets(inds, boxes).permute(2, 3, 1, 0)
         return targets_cls, targets_reg
 
     def forward(self, item):
-        targets_cls, targets_reg = self.get_targets(item)
+        targets_cls, targets_reg = self.get_targets(item['boxes'], item['class_ids'])
         item.update(dict(prop_targets_cls=targets_cls, prop_targets_reg=targets_reg))
-        return item

@@ -2,14 +2,17 @@ import numpy as np
 import torch
 from torch import nn
 from typing import List
+from collections import defaultdict
 
 import spconv
 from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
-from .proposal_targets import ProposalTargetAssigner
-
 
 class Preprocessor(nn.Module):
+
+    """
+    TODO: Move keypoint sampling back to model.
+    """
 
     def __init__(self, cfg):
         super(Preprocessor, self).__init__()
@@ -24,7 +27,6 @@ class Preprocessor(nn.Module):
             max_voxels=cfg.MAX_VOXELS,
             max_num_points=cfg.MAX_OCCUPANCY,
         )
-        self.grid_shape = np.r_[voxel_generator.grid_size[::-1]] + [1, 0, 0]
         return voxel_generator
 
     def generate_batch_voxels(self, points):
@@ -93,10 +95,22 @@ class TrainPreprocessor(Preprocessor):
 
     def __init__(self, cfg):
         super(TrainPreprocessor, self).__init__(cfg)
-        self.target_assigner = ProposalTargetAssigner(cfg)
 
-    def forward(self, input_dict):
-        input_dict.update(self.voxelize(input_dict['points']))
-        input_dict['keypoints'] = self.sample_keypoints(input_dict['points'])
-        input_dict = self.target_assigner(input_dict)
-        return input_dict
+    def collate_mapping(self, key):
+        torch_stack = ['prop_targets_cls', 'prop_targets_reg']
+        identity = ['idx', 'points', 'boxes', 'class_ids']
+        if key in torch_stack:
+            return torch.stack
+        return lambda x: x
+
+    def collate(self, items):
+        batch_item = defaultdict(list)
+        for item in items:
+            for key, val in item.items():
+                if isinstance(val, torch.Tensor):
+                    batch_item[key] += [val.cuda()]
+                else:
+                    batch_item[key] += [val]
+        for key, val in batch_item.items():
+            batch_item[key] = self.collate_mapping(key)(val)
+        return self(dict(batch_item))

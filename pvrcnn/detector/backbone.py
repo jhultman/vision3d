@@ -4,6 +4,7 @@ Modified SpMiddleFHD (see github.com/traveller59/second.pytorch).
 
 import itertools
 import torch
+import numpy as np
 from torch import nn
 from torch.nn.modules.batchnorm import _BatchNorm
 
@@ -43,6 +44,14 @@ def random_choice(x, n, dim=0):
     return x[inds]
 
 
+def compute_grid_shape(cfg):
+    voxel_size = np.r_[cfg.VOXEL_SIZE]
+    lower, upper = np.reshape(cfg.GRID_BOUNDS, (2, 3))
+    grid_shape = (upper - lower) / voxel_size + [0, 0, 1]
+    grid_shape = np.int32(grid_shape)[::-1].tolist()
+    return grid_shape
+
+
 class VoxelFeatureExtractor(nn.Module):
     """Computes mean of non-zero points within voxel."""
 
@@ -68,11 +77,11 @@ class SparseCNN(nn.Module):
         block_4: [64,  400,  320,  5] -> [64, 200, 160,  2]
     """
 
-    def __init__(self, grid_shape, cfg):
+    def __init__(self, cfg):
         """:grid_shape voxel grid dimensions in ZYX order."""
         super(SparseCNN, self).__init__()
         self.cfg = cfg
-        self.grid_shape = grid_shape
+        self.grid_shape = compute_grid_shape(cfg)
         self.base_voxel_size = torch.cuda.FloatTensor(cfg.VOXEL_SIZE)
         self.voxel_offset = torch.cuda.FloatTensor(cfg.GRID_BOUNDS[:3])
         self.block1 = spconv.SparseSequential(

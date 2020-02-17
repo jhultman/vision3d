@@ -49,8 +49,8 @@ class Object3d(object):
         data = label_file_line.split(" ")
         data[1:] = [float(x) for x in data[1:]]
         # extract label, truncation, occlusion
-        self.type = data[0] # "Car", "Pedestrian", ...
-        self.cls_id = self.cls_type_to_id(self.type)
+        self.class_name = data[0] # "Car", "Pedestrian", ...
+        self.class_id = self.class_name_to_id(self.class_name)
         self.truncation = data[1] # truncated pixel ratio [0..1]
         self.occlusion = int(data[2]) # 0=visible, 1=partly occluded, 2=fully occluded, 3=unknown
         self.alpha = data[3] # object observation angle [-pi..pi]
@@ -72,7 +72,7 @@ class Object3d(object):
         self.score = data[15] if data.__len__() == 16 else -1.0
         self.level = self.get_obj_level()
 
-    def cls_type_to_id(self, cls_type):
+    def class_name_to_id(self, class_name):
         CLASS_NAME_TO_ID = {
             "Car": 0,
             "Van": 0,
@@ -80,9 +80,9 @@ class Object3d(object):
             "Person_sitting": 1,
             "Cyclist": 2,
         }
-        if cls_type not in CLASS_NAME_TO_ID.keys():
+        if class_name not in CLASS_NAME_TO_ID.keys():
             return -1
-        return CLASS_NAME_TO_ID[cls_type]
+        return CLASS_NAME_TO_ID[class_name]
 
     def get_obj_level(self):
         height = float(self.box2d[3]) - float(self.box2d[1]) + 1

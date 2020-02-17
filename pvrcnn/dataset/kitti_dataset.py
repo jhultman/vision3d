@@ -1,10 +1,12 @@
 from tqdm import tqdm
 import pickle
 import numpy as np
+import torch
 from copy import deepcopy
 import os.path as osp
 from torch.utils.data import Dataset
 
+from pvrcnn.core import ProposalTargetAssigner
 from .kitti_utils import read_calib, read_label, read_velo
 
 
@@ -14,6 +16,8 @@ class KittiDataset(Dataset):
         self.split = split
         self.rootdir = cfg.DATA.ROOTDIR
         self.load_annotations(cfg)
+        if split == 'train':
+            self.target_assigner = ProposalTargetAssigner(cfg)
         self.cfg = cfg
 
     def __len__(self):
@@ -61,12 +65,12 @@ class KittiDataset(Dataset):
         wlh = np.r_[obj.w, obj.l, obj.h]
         rz = np.r_[-obj.ry]
         box = np.r_[xyz, wlh, rz]
-        obj = dict(box=box,  cls_id=obj.cls_id)
+        obj = dict(box=box,  class_id=obj.class_id)
         return obj
 
     def stack_boxes(self, item):
         boxes = np.stack([obj['box'] for obj in item['objects']])
-        class_ids = np.r_[[obj['cls_id'] for obj in item['objects']]]
+        class_ids = np.r_[[obj['class_id'] for obj in item['objects']]]
         item.update(dict(boxes=boxes, class_ids=class_ids))
 
     def drop_keys(self, item):
@@ -82,6 +86,11 @@ class KittiDataset(Dataset):
         item['boxes'] = item['boxes'][keep]
         item['class_ids'] = item['class_ids'][keep]
 
+    def assign_targets(self, item):
+        item['boxes'] = torch.from_numpy(item['boxes']).float()
+        item['class_ids'] = torch.from_numpy(item['class_ids']).long()
+        self.target_assigner(item)
+
     def __getitem__(self, idx):
         idx = self.inds[idx]
         item = deepcopy(self.annotations[idx])
@@ -91,5 +100,6 @@ class KittiDataset(Dataset):
         self.stack_boxes(item)
         if self.split == 'train':
             self.filter_bad_boxes(item)
+            self.assign_targets(item)
         self.drop_keys(item)
         return item

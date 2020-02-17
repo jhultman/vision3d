@@ -21,13 +21,12 @@ class PV_RCNN(nn.Module):
     Raw input points are treated as an additional stride-1 voxel stage.
     """
 
-    def __init__(self, cfg, preprocessor):
+    def __init__(self, cfg):
         super(PV_RCNN, self).__init__()
-        self.preprocessor = preprocessor
         self.pnets = self.build_pointnets(cfg)
         self.roi_grid_pool = RoiGridPool(cfg)
         self.vfe = VoxelFeatureExtractor()
-        self.cnn = SparseCNN(preprocessor.grid_shape, cfg)
+        self.cnn = SparseCNN(cfg)
         self.bev_gatherer = self.build_bev_gatherer(cfg)
         self.proposal_layer = ProposalLayer(cfg)
         self.refinement_layer = RefinementLayer(cfg)
@@ -77,12 +76,11 @@ class PV_RCNN(nn.Module):
         """
         TODO: Document intermediate tensor shapes.
         """
-        item = self.preprocessor(item)
         features = self.vfe(item['features'], item['occupancy'])
         cnn_features, bev_map = self.cnn(features, item['coordinates'], item['batch_size'])
-        proposal_boxes, proposal_scores = self.proposal_layer(bev_map)
+        proposal_scores, proposal_boxes = self.proposal_layer(bev_map)
         if proposals_only:
-            item.update(dict(proposal_boxes=proposal_boxes, proposal_scores=proposal_scores))
+            item.update(dict(proposal_scores=proposal_scores, proposal_boxes=proposal_boxes))
             return item
         point_features = self.point_feature_extract(item, cnn_features, bev_map)
         pooled_features = self.roi_grid_pool(proposals, item['keypoints'], point_features)

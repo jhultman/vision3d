@@ -21,10 +21,10 @@ class ProposalLayer(nn.Module):
     def inference(self, features):
         raise NotImplementedError
 
-    def reshape_boxes(self, reg):
-        N, C, H, W = reg.shape
-        reg = reg.view(N, -1, self.cfg.BOX_DOF, H, W)
-        return reg
+    def reshape_boxes(self, reg_map):
+        N, C, H, W = reg_map.shape
+        reg_map = reg_map.view(N, -1, self.cfg.BOX_DOF, H, W)
+        return reg_map
 
     def forward(self, feature_map):
         cls_map = self.cls(feature_map)
