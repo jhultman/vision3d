@@ -2,14 +2,17 @@ import torch
 from torch import nn
 
 
-class TargetAssigner(nn.Module):
+class RefinementTargetAssigner(nn.Module):
+    """
+    TODO: Remove batch support to simplify implementation.
+    """
 
     def __init__(self, cfg):
-        super(TargetAssigner, self).__init__()
+        super(RefinementTargetAssigner, self).__init__()
         self.cfg = cfg
-        self.num_classes = len(self.cfg.ANCHORS) + 1
-        anchor_sizes = [anchor['wlh'] for anchor in self.cfg.ANCHORS]
-        anchor_radii = [anchor['radius'] for anchor in self.cfg.ANCHORS]
+        self.num_classes = cfg.NUM_CLASSES
+        anchor_sizes = [anchor['wlh'] for anchor in cfg.ANCHORS]
+        anchor_radii = [anchor['radius'] for anchor in cfg.ANCHORS]
         self.anchor_sizes = torch.tensor(anchor_sizes).float()
         self.anchor_radii = torch.tensor(anchor_radii).float()
 
@@ -77,13 +80,7 @@ class TargetAssigner(nn.Module):
         in_radius &= self.batch_correspondence_mask(box_counts, keypoints.device)
         return in_radius.nonzero().t()
 
-    def assign_proposal(self, item):
-        """
-        Simple target assignment algorithm based on Sparse-to-Dense.
-        Keypoints considered positive if within category-specific
-        max spherical radius of box center.
-        TODO: Refactor so can reuse for refinement target assignment.
-        """
+    def get_targets(self, item):
         box_counts = [b.shape[0] for b in item['boxes']]
         boxes = torch.cat(item['boxes'], dim=0)
         class_ids = torch.cat(item['class_ids'], dim=0)
@@ -98,7 +95,6 @@ class TargetAssigner(nn.Module):
         return targets_cls, targets_reg
 
     def forward(self, item):
-        """TODO: Assign refinement targets."""
-        targets_cls, targets_reg = self.assign_proposal(item)
-        item.update(dict(prop_targets_cls=targets_cls, prop_targets_reg=targets_reg))
+        targets_cls, targets_reg = self.get_targets(item)
+        item.update(dict(ref_targets_cls=targets_cls, ref_targets_reg=targets_reg))
         return item

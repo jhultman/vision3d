@@ -25,14 +25,12 @@ class BEVFeatureGatherer(nn.Module):
         indices = self.normalize_grid_sample_indices(indices, H, W)
         return indices
 
-    def forward(self, volume, keypoint_xyz):
+    def forward(self, feature_map, keypoint_xyz):
         """
         Project 3D pixel grid to XY-plane and gather
         BEV features using bilinear interpolation.
         """
-        volume = volume.dense()
-        N, C, D, H, W = volume.shape
-        volume = volume.view(N, C * D, H, W)
+        N, C, H, W = feature_map.shape
         indices = self.compute_bev_indices(keypoint_xyz, H, W)
-        features = F.grid_sample(volume, indices, align_corners=True).squeeze(2)
+        features = F.grid_sample(feature_map, indices, align_corners=True).squeeze(2)
         return features

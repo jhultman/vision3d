@@ -49,7 +49,7 @@ class PV_RCNN(nn.Module):
             cfg, self.cnn.voxel_offset, self.cnn.base_voxel_size)
         return bev
 
-    def pnet_forward(self, cnn_out, keypoint_xyz):
+    def pointnets(self, cnn_out, keypoint_xyz):
         """
         Call PointNets to gather keypoint features from CNN feature volumes.
         :param xyz: (B, N, 3) tensor of the xyz coordinates of the features
@@ -65,28 +65,26 @@ class PV_RCNN(nn.Module):
             pnet_out += [out]
         return pnet_out
 
-    def feature_extract(self, item):
-        features = self.vfe(item['features'], item['occupancy'])
+    def point_feature_extract(self, item, cnn_features, bev_map):
         points_split = torch.split(item['points'], [3, 1], dim=-1)
-        cnn_out, final_volume = self.cnn(
-            features, item['coordinates'], item['batch_size'])
-        cnn_out = [points_split] + cnn_out
-        pnet_out = self.pnet_forward(cnn_out, item['keypoints'])
-        bev_out = self.bev_gatherer(final_volume, item['keypoints'])
-        features = torch.cat(pnet_out + [bev_out], dim=1)
-        return features
+        cnn_features = [points_split] + cnn_features
+        point_features = self.pointnets(cnn_features, item['keypoints'])
+        bev_features = self.bev_gatherer(bev_map, item['keypoints'])
+        point_features = torch.cat(point_features + [bev_features], dim=1)
+        return point_features
 
     def forward(self, item, proposals_only=False):
         """
         TODO: Document intermediate tensor shapes.
         """
         item = self.preprocessor(item)
-        features = self.feature_extract(item)
-        keypoints_xyz = item['keypoints']
-        proposal_boxes, proposal_scores = self.proposal_layer(keypoints_xyz, features)
+        features = self.vfe(item['features'], item['occupancy'])
+        cnn_features, bev_map = self.cnn(features, item['coordinates'], item['batch_size'])
+        proposal_boxes, proposal_scores = self.proposal_layer(bev_map)
         if proposals_only:
             item.update(dict(proposal_boxes=proposal_boxes, proposal_scores=proposal_scores))
             return item
-        pooled_features = self.roi_grid_pool(proposals, keypoints_xyz, features)
+        point_features = self.point_feature_extract(item, cnn_features, bev_map)
+        pooled_features = self.roi_grid_pool(proposals, item['keypoints'], point_features)
         predictions, scores_detections = self.refinement_layer(proposals, pooled_features)
         return predictions

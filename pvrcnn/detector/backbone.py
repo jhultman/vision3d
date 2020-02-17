@@ -154,6 +154,13 @@ class SparseCNN(nn.Module):
         chunks = [torch.cat((c, p)) for (c, p) in zip(chunks, pad_values)]
         return torch.stack(chunks)
 
+    def to_bev(self, volume):
+        """Collapse z-dimension to form BEV feature map."""
+        volume = volume.dense()
+        N, C, D, H, W = volume.shape
+        bev = volume.view(N, C * D, H, W)
+        return bev
+
     def forward(self, features, coordinates, batch_size):
         x0 = spconv.SparseConvTensor(
             features, coordinates.int(), self.grid_shape, batch_size
@@ -162,6 +169,7 @@ class SparseCNN(nn.Module):
         x2 = self.block2(x1)
         x3 = self.block3(x2)
         x4 = self.block4(x3)
+        x4 = self.to_bev(x4)
         args = zip(self.cfg.STRIDES, (x0, x1, x2, x3))
         x = list(itertools.starmap(self.to_global, args))
         return x, x4

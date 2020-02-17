@@ -6,7 +6,7 @@ from typing import List
 import spconv
 from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
-from .target_assigner import TargetAssigner
+from .proposal_targets import ProposalTargetAssigner
 
 
 class Preprocessor(nn.Module):
@@ -93,7 +93,7 @@ class TrainPreprocessor(Preprocessor):
 
     def __init__(self, cfg):
         super(TrainPreprocessor, self).__init__(cfg)
-        self.target_assigner = TargetAssigner(cfg)
+        self.target_assigner = ProposalTargetAssigner(cfg)
 
     def forward(self, input_dict):
         input_dict.update(self.voxelize(input_dict['points']))
