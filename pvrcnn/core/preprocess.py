@@ -51,7 +51,7 @@ class Preprocessor(nn.Module):
         """Make cuda tensor."""
         return torch.from_numpy(x).cuda()
 
-    def voxelize(self, points):
+    def forward(self, item):
         """
         Compute sparse voxel grid.
         :points_in list of np.ndarrays of shape (Np, 4)
@@ -59,17 +59,13 @@ class Preprocessor(nn.Module):
         :features FloatTensor of shape (Nv, 1)
         :coordinates IntTensor of shape (Nv, 4)
         """
-        features, coordinates, occupancy = self.generate_batch_voxels(points)
-        points = self.pad_for_batch(points)
+        features, coordinates, occupancy = self.generate_batch_voxels(item['points'])
+        points = self.pad_for_batch(item['points'])
         keys = ['points', 'features', 'coordinates', 'occupancy']
         vals = map(self.from_numpy, (points, features, coordinates, occupancy))
-        input_dict = dict(zip(keys, vals))
-        input_dict['batch_size'] = len(points)
-        return input_dict
-
-    def forward(self, input_dict):
-        input_dict.update(self.voxelize(input_dict['points']))
-        return input_dict
+        item.update(dict(zip(keys, vals)))
+        item['batch_size'] = len(points)
+        return item
 
 
 class TrainPreprocessor(Preprocessor):
@@ -79,7 +75,7 @@ class TrainPreprocessor(Preprocessor):
 
     def collate_mapping(self, key):
         torch_stack = ['prop_targets_cls', 'prop_targets_reg']
-        identity = ['idx', 'points', 'boxes', 'class_ids']
+        identity = ['idx', 'points', 'boxes', 'class_idx']
         if key in torch_stack:
             return torch.stack
         return lambda x: x

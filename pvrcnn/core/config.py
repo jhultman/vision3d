@@ -1,4 +1,5 @@
 from yacs.config import CfgNode as CN
+import numpy as np
 
 _C = CN()
 
@@ -19,20 +20,23 @@ _C.ANCHORS = [
     {
         'names': ['Car', 'Van'],
         'wlh': [1.6, 3.9, 1.56],
+        'yaw': [0, np.pi / 2],
+        'iou_thresh': [0.45, 0.60],
         'center_z': -1.0,
-        'radius': 2.0,
     },
     {
         'names': ['Pedestrian', 'Person_sitting'],
         'wlh': [0.6, 0.8, 1.73],
+        'yaw': [0, np.pi / 2],
+        'iou_thresh': [0.35, 0.20],
         'center_z': -0.6,
-        'radius': 1.0,
     },
     {
         'names': ['Cyclist'],
         'wlh': [0.6, 1.76, 1.73],
+        'yaw': [0, np.pi / 2],
+        'iou_thresh': [0.20, 0.35],
         'center_z': -0.6,
-        'radius': 1.0,
     },
 ]
 _C.NUM_CLASSES = len(_C.ANCHORS) + 1

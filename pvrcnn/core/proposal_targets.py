@@ -1,5 +1,8 @@
 import torch
 from torch import nn
+from collections import defaultdict
+
+from pvrcnn.ops import rotated_iou
 
 
 def _linspace_midpoint(x0, x1, nx):
@@ -19,6 +22,14 @@ def meshgrid_midpoint(*arrays):
     return grid
 
 
+def torchify_anchor_attributes(cfg):
+    attr = {}
+    for key in ['wlh', 'center_z', 'yaw', 'iou_thresh']:
+        vals = [torch.tensor(anchor[key]) for anchor in cfg.ANCHORS]
+        attr[key] = torch.stack(vals).float()
+    return dict(attr)
+
+
 class ProposalTargetAssigner(nn.Module):
     """
     Simple target assignment algorithm based on Sparse-to-Dense.
@@ -31,10 +42,7 @@ class ProposalTargetAssigner(nn.Module):
     def __init__(self, cfg):
         super(ProposalTargetAssigner, self).__init__()
         self.cfg = cfg
-        anchor_sizes = [anchor['wlh'] for anchor in cfg.ANCHORS]
-        anchor_radii = [anchor['radius'] for anchor in cfg.ANCHORS]
-        self.anchor_sizes = torch.tensor(anchor_sizes).float()
-        self.anchor_radii = torch.tensor(anchor_radii).float()
+        self.anchor_attributes = torchify_anchor_attributes(cfg)
         self.anchors = self.make_anchors()
 
     def compute_grid_params(self):
@@ -44,25 +52,30 @@ class ProposalTargetAssigner(nn.Module):
         return lower, upper, grid_shape
 
     def make_anchor_sizes(self, nx, ny):
-        sizes = [anchor['wlh'] for anchor in self.cfg.ANCHORS]
-        sizes = torch.tensor(sizes).float()[None, None]
-        sizes = sizes.expand(nx, ny, -1, -1)
+        num_yaw = self.anchor_attributes['yaw'].shape[1]
+        sizes = self.anchor_attributes['wlh'][None, None, None]
+        sizes = sizes.expand(nx, ny, num_yaw, -1, -1)
         return sizes
 
     def make_anchor_centers(self, meshgrid_params):
-        anchor_z = [anchor['center_z'] for anchor in cfg.ANCHORS]
-        anchor_z = torch.tensor(anchor_z).float()
-        centers = meshgrid_midpoint(*meshgrid_params)
-        centers = centers.expand(-1, -1, self.cfg.NUM_CLASSES - 1, -1)
-        centers[:, :, torch.arange(self.cfg.NUM_CLASSES - 1), 2] = anchor_z
+        num_yaw = self.anchor_attributes['yaw'].shape[1]
+        anchor_z = self.anchor_attributes['center_z']
+        centers = meshgrid_midpoint(*meshgrid_params)[:, :, None]
+        centers = centers.expand(-1, -1, num_yaw, self.cfg.NUM_CLASSES - 1, -1)
+        centers[:, :, :, torch.arange(self.cfg.NUM_CLASSES - 1), 2] = anchor_z
         return centers
+
+    def make_anchor_angles(self, nx, ny):
+        yaw = self.anchor_attributes['yaw'].T[None, None, ..., None]
+        yaw = yaw.expand(nx, ny, -1, -1, -1)
+        return yaw
 
     def make_anchors(self):
         (z0, z1, nz) = 1, 1, 1
         (x0, y0), (x1, y1), (nx, ny) = self.compute_grid_params()
-        centers = self.make_anchor_centers((x0, x1, nx), (y0, y1, ny), (z0, z1, nz))
+        centers = self.make_anchor_centers([(x0, x1, nx), (y0, y1, ny), (z0, z1, nz)])
         sizes = self.make_anchor_sizes(nx, ny)
-        angles = centers.new_zeros((nx, ny, self.cfg.NUM_CLASSES - 1, 1))
+        angles = self.make_anchor_angles(nx, ny)
         anchors = torch.cat((centers, sizes, angles), dim=-1)
         return anchors
 
@@ -85,7 +98,7 @@ class ProposalTargetAssigner(nn.Module):
         targets_cls[ambiguous][:, :-1] = 0
         targets_cls[ambiguous][:, -1] = 1
 
-    def make_cls_targets(self, inds):
+    def make_targets_cls(self, pos_inds, neg_inds):
         """
         Note that some negatives will be overwritten by positives.
         Last two indices are background and ignore, respectively.
@@ -94,18 +107,18 @@ class ProposalTargetAssigner(nn.Module):
         H, W, _, _ = self.anchors.shape
         targets_cls = torch.zeros((H, W, self.cfg.NUM_CLASSES + 1), dtype=torch.long)
         targets_cls[..., -1] = 1
-        self.fill_negatives(targets_cls)
-        self.fill_positives(targets_cls, inds)
+        self.fill_negatives(targets_cls, neg_inds)
+        self.fill_positives(targets_cls, pos_inds)
         self.fill_ambiguous(targets_cls)
         return targets_cls
 
-    def make_reg_targets(self, inds, boxes):
+    def make_targets_reg(self, pos_inds, boxes):
         """
         Standard VoxelNet-style box encoding.
         TODO: Angle binning.
         """
         H, W, _, _ = self.anchors.shape
-        i, j, G_idx, class_idx = inds
+        i, j, G_idx, class_idx = pos_inds
         A_idx = (i, j, class_idx)
         targets_reg = torch.zeros((H, W, self.cfg.BOX_DOF), dtype=torch.float32)
         G_xyz, G_wlh, G_yaw = boxes[G_idx].split([3, 3, 1], -1)
@@ -118,20 +131,38 @@ class ProposalTargetAssigner(nn.Module):
         targets_reg[i, j] = values
         return targets_reg
 
-    def get_targets(self, boxes, class_inds):
-        # for each bounding box, see if should be assigned to cell i, j
-        A_xyz, G_xyz = self.anchors[..., :3], boxes[..., :3]
-        offset = G_xyz[None, None, :, :] - A_xyz[:, :, class_inds]
-        match = offset.norm(dim=-1) < self.anchor_radii[class_inds]
+    def compute_iou_matrix(self, anchors, boxes):
+        matrix = rotated_iou(
+            anchors[:, [0, 1, 3, 4, 6]],
+            boxes[:, [0, 1, 3, 4, 6]],
+        )
+        return matrix
 
-        # positive indices
-        i, j, box_idx = match.nonzero().t()
-        inds = (i, j, box_idx, class_inds[box_idx])
+    def make_target_indices(self, match_matrix, class_idx):
+        anchor_idx, box_idx = match_matrix.nonzero().t()
+        indices = (i, j, box_idx, class_idx[box_idx])
+        return indices
 
-        targets_cls = self.make_cls_targets(inds).permute(2, 1, 0)
-        targets_reg = self.make_reg_targets(inds, boxes).permute(2, 3, 1, 0)
+    def single_class_assign(self, anchors, boxes, thresh):
+        iou = self.compute_iou_matrix(anchors, boxes)
+        negative, positive = iou < thresh[0], iou > thresh[1]
+        pos_inds = self.make_target_indices(positive)
+        neg_inds = self.make_target_indices(negative)
+        targets_cls = self.make_targets_cls(anchors, pos_inds, neg_inds)
+        targets_reg = self.make_targets_reg(anchors, pos_inds, boxes)
         return targets_cls, targets_reg
 
+    def to_multiclass(self, targets):
+        pass
+
     def forward(self, item):
-        targets_cls, targets_reg = self.get_targets(item['boxes'], item['class_ids'])
-        item.update(dict(prop_targets_cls=targets_cls, prop_targets_reg=targets_reg))
+        boxes, class_idx = item['boxes'], item['class_idx']
+        item['prop_targets_cls'], item['prop_targets_reg']
+        targets = []
+        for i in range(n_cls):
+            cls__boxes = boxes[class_idx == i]
+            thresh = self.anchor_attributes['iou_thresh'][i]
+            cls_anchors = self.anchors[:, :, :, i].view(-1, self.cfg.BOX_DOF)
+            targets += [self.single_class_assign(cls_anchors, cls_boxes, thresh)]
+        targets = self.to_multiclass(targets)
+        return matrix

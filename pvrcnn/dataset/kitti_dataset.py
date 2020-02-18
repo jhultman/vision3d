@@ -70,10 +70,10 @@ class KittiDataset(Dataset):
 
     def stack_boxes(self, item):
         boxes = [obj['box'] for obj in item['objects']]
-        class_ids = [obj['class_id'] for obj in item['objects']]
+        class_idx = [obj['class_idx'] for obj in item['objects']]
         boxes = torch.FloatTensor(boxes)
-        class_ids = torch.LongTensor(class_ids)
-        item.update(dict(boxes=boxes, class_ids=class_ids))
+        class_idx = torch.LongTensor(class_idx)
+        item.update(dict(boxes=boxes, class_idx=class_idx))
 
     def make_objects(self, item):
         item['objects'] = [self.make_simple_object(
@@ -85,13 +85,13 @@ class KittiDataset(Dataset):
             item.pop(key)
 
     def filter_bad_boxes(self, item):
-        class_ids = item['class_ids'][:, None]
+        class_idx = item['class_idx'][:, None]
         xyz, wlh, _ = item['boxes'].split([3, 3, 1], dim=1)
         lower, upper = torch.tensor(self.cfg.GRID_BOUNDS).split([3, 3])
         keep = ((xyz >= lower) & (xyz <= upper) &
-            (class_ids != -1) & (wlh > 0)).all(1)
+            (class_idx != -1) & (wlh > 0)).all(1)
         item['boxes'] = item['boxes'][keep]
-        item['class_ids'] = item['class_ids'][keep]
+        item['class_idx'] = item['class_idx'][keep]
 
     def __getitem__(self, idx):
         item = deepcopy(self.annotations[self.inds[idx]])
