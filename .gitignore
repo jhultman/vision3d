@@ -6,6 +6,7 @@ data/*
 pythonpath.sh
 *.bin
 *.pth
+*.so
 
 build/*
 dist/*
