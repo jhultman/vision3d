@@ -7,10 +7,7 @@ from pvrcnn.thirdparty import Matcher, subsample_labels
 
 class ProposalTargetAssigner(nn.Module):
     """
-    Simple target assignment algorithm based on Sparse-to-Dense.
-    Anchors considered positive if within category-specific
-    max spherical radius of box center.
-
+    Target assignment algorithm similar to Faster R-CNN.
     TODO: Refactor target_cls assignment -- too much memory copy.
     """
 
