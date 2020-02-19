@@ -74,7 +74,7 @@ class TrainPreprocessor(Preprocessor):
         super(TrainPreprocessor, self).__init__(cfg)
 
     def collate_mapping(self, key):
-        torch_stack = ['prop_targets_cls', 'prop_targets_reg']
+        torch_stack = ['proposal_targets_cls', 'proposal_targets_reg']
         identity = ['idx', 'points', 'boxes', 'class_idx']
         if key in torch_stack:
             return torch.stack

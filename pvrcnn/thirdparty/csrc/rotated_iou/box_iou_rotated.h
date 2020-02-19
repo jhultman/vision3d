@@ -28,8 +28,6 @@ inline at::Tensor box_iou_rotated(
     AT_ERROR("Not compiled with GPU support");
 #endif
   }
-
-  return box_iou_rotated_cpu(boxes1, boxes2);
 }
 
 } // namespace detectron2

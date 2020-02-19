@@ -65,7 +65,7 @@ class KittiDataset(Dataset):
         wlh = np.r_[obj.w, obj.l, obj.h]
         rz = np.r_[-obj.ry]
         box = np.r_[xyz, wlh, rz]
-        obj = dict(box=box, class_id=obj.class_id)
+        obj = dict(box=box, class_idx=obj.class_idx)
         return obj
 
     def stack_boxes(self, item):

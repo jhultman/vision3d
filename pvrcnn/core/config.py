@@ -28,7 +28,7 @@ _C.ANCHORS = [
         'names': ['Pedestrian', 'Person_sitting'],
         'wlh': [0.6, 0.8, 1.73],
         'yaw': [0, np.pi / 2],
-        'iou_thresh': [0.35, 0.20],
+        'iou_thresh': [0.20, 0.35],
         'center_z': -0.6,
     },
     {
@@ -39,7 +39,10 @@ _C.ANCHORS = [
         'center_z': -0.6,
     },
 ]
+_C.NUM_PROPOSAL_SAMPLE = 256
+_C.ALLOW_LOW_QUALITY_MATCHES = True
 _C.NUM_CLASSES = len(_C.ANCHORS) + 1
+_C.NUM_YAW = 2
 _C.BOX_DOF = 7
 
 # PointSetAbstraction

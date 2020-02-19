@@ -22,8 +22,8 @@ class ProposalLoss(nn.Module):
         Loss is applied at all positive sites, averaged
         over the number of such sites.
         """
-        G_xyz, G_wlh, G_yaw = targets_reg.split([3, 3, 1], dim=2)
-        P_xyz, P_wlh, P_yaw = pred_reg.split([3, 3, 1], dim=2)
+        G_xyz, G_wlh, G_yaw = targets_reg.split([3, 3, 1], dim=-1)
+        P_xyz, P_wlh, P_yaw = pred_reg.split([3, 3, 1], dim=-1)
         loss_xyz = F.smooth_l1_loss(P_xyz, G_xyz, reduction='none')
         loss_wlh = F.smooth_l1_loss(P_wlh, G_wlh, reduction='none')
         loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none')
@@ -43,11 +43,11 @@ class ProposalLoss(nn.Module):
 
     def forward(self, item):
         """Proposal loss same as in Sparse-to-Dense."""
-        keys = ['prop_targets_cls', 'prop_targets_reg', 'proposal_scores', 'proposal_boxes']
+        keys = ['proposal_targets_cls', 'proposal_targets_reg', 'proposal_scores', 'proposal_boxes']
         targets_cls, targets_reg, pred_cls, pred_reg = map(item.__getitem__, keys)
         G_cls, mask_cls = targets_cls.split([self.cfg.NUM_CLASSES, 1], dim=1)
         cls_loss = self.cls_loss(G_cls, pred_cls, mask_cls.squeeze(1))
-        reg_loss = self.reg_loss(targets_reg, pred_reg, 1 - G_cls[:, -1:, None])
+        reg_loss = self.reg_loss(targets_reg, pred_reg, 1 - G_cls[:, -1:, ..., None])
         loss = cls_loss + self.cfg.TRAIN.LAMBDA * reg_loss
         losses = dict(cls_loss=cls_loss, reg_loss=reg_loss, loss=loss)
         return losses
