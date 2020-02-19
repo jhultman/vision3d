@@ -36,3 +36,7 @@ pip install -r requirements.txt
 ```
 python setup.py develop
 ```
+
+## Common Issues
+If the custom ops are not compiled with GPU support, make sure your 
+`CUDA_HOME` environment variable is set, and try running `setup.py` with `FORCE_CUDA=1`.

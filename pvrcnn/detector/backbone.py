@@ -63,11 +63,12 @@ class VoxelFeatureExtractor(nn.Module):
 
 class SparseCNN(nn.Module):
     """
-    Returns feature volumes strided 1x, 2x, 4x, 8x, 8x.
-    block_1: [ 4, 8y, 8x, 41] -> [32, 4y, 4x, 21]
-    block_2: [32, 4y, 4x, 21] -> [64, 2y, 2x, 11]
-    block_3: [64, 2y, 2x, 11] -> [64, 1y, 1x,  5]
-    block_4: [64, 1y, 1x,  5] -> [64, 1y, 1x,  2]
+    block      shape    stride
+    0    [ 4, 8y, 8x, 41]    1
+    1    [32, 4y, 4x, 21]    2
+    2    [64, 2y, 2x, 11]    4
+    3    [64, 1y, 1x,  5]    8
+    4    [64, 1y, 1x,  2]    8
     """
 
     def __init__(self, cfg):
