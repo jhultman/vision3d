@@ -6,18 +6,24 @@ from copy import deepcopy
 import os.path as osp
 from torch.utils.data import Dataset
 
-from pvrcnn.core import ProposalTargetAssigner
+from pvrcnn.core import ProposalTargetAssigner, AnchorGenerator
 from .kitti_utils import read_calib, read_label, read_velo
 
 
 class KittiDataset(Dataset):
+    """
+    TODO: This class should certainly not need
+    access to anchors. Find better place to
+    instantiate target assigner.
+    """
 
     def __init__(self, cfg, split):
         self.split = split
         self.rootdir = cfg.DATA.ROOTDIR
         self.load_annotations(cfg)
         if split == 'train':
-            self.target_assigner = ProposalTargetAssigner(cfg)
+            anchors = AnchorGenerator(cfg).anchors
+            self.target_assigner = ProposalTargetAssigner(cfg, anchors)
         self.cfg = cfg
 
     def __len__(self):
