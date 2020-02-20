@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from pvrcnn.ops import sigmoid_focal_loss
+from pvrcnn.ops import sigmoid_focal_loss, batched_nms_rotated
 
 
 class ProposalLayer(nn.Module):
@@ -22,8 +22,14 @@ class ProposalLayer(nn.Module):
         self.conv_reg = nn.Conv2d(
             cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES - 1) * cfg.NUM_YAW * cfg.BOX_DOF, 1)
 
-    def inference(self, features):
-        """TODO: Sigmoid and topk proposal indexing."""
+    def inference(self, feature_map):
+        """
+        TODO: Sigmoid and topk proposal indexing.
+        """
+        cls_map, reg_map = self(feature_map)
+        scores = cls_map.sigmoid()
+        class_idx = torch.arange(self.cfg.NUM_CLASSES) - 1
+        class_idx = class_idx[None, :, None, None, None].expand_as(scores)
         raise NotImplementedError
 
     def reshape_cls(self, cls_map):
@@ -45,7 +51,10 @@ class ProposalLayer(nn.Module):
 
 
 class ProposalLoss(nn.Module):
-    """TODO: Binned angle loss."""
+    """
+    Note: P_i and G_i refer to predicted and target quantities respectively.
+    TODO: Binned angle loss.
+    """
 
     def __init__(self, cfg):
         super(ProposalLoss, self).__init__()
@@ -56,13 +65,13 @@ class ProposalLoss(nn.Module):
         loss = (loss * mask).sum() / mask.sum()
         return loss
 
-    def reg_loss(self, pred_reg, targets_reg, mask):
+    def reg_loss(self, P_reg, G_reg, mask):
         """
         Loss is applied at all positive sites, averaged
         over the number of such sites.
         """
-        P_xyz, P_wlh, P_yaw = pred_reg.split([3, 3, 1], dim=-1)
-        G_xyz, G_wlh, G_yaw = targets_reg.split([3, 3, 1], dim=-1)
+        P_xyz, P_wlh, P_yaw = P_reg.split([3, 3, 1], dim=-1)
+        G_xyz, G_wlh, G_yaw = G_reg.split([3, 3, 1], dim=-1)
         loss_xyz = F.smooth_l1_loss(P_xyz, G_xyz, reduction='none')
         loss_wlh = F.smooth_l1_loss(P_wlh, G_wlh, reduction='none')
         loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none')
@@ -80,12 +89,12 @@ class ProposalLoss(nn.Module):
         return loss
 
     def forward(self, item):
-        keys = ['proposal_targets_cls', 'proposal_targets_reg', 'proposal_scores', 'proposal_boxes']
-        targets_cls, targets_reg, pred_cls, pred_reg = map(item.__getitem__, keys)
-        G_cls, mask_cls = targets_cls.split([self.cfg.NUM_CLASSES - 1, 1], dim=1)
+        G_cls, G_reg = map(item.get, ['proposal_targets_cls', 'proposal_targets_reg'])
+        P_cls, P_reg = map(item.get, ['proposal_scores', 'proposal_boxes'])
+        G_cls, mask_cls = G_cls.split([self.cfg.NUM_CLASSES - 1, 1], dim=1)
         mask_reg = G_cls[:, :-1, ..., None].sum(1, keepdim=True)
-        cls_loss = self.cls_loss(pred_cls, G_cls, mask_cls)
-        reg_loss = self.reg_loss(pred_reg, targets_reg, mask_reg)
+        cls_loss = self.cls_loss(P_cls, G_cls, mask_cls)
+        reg_loss = self.reg_loss(P_reg, G_reg, mask_reg)
         loss = cls_loss + self.cfg.TRAIN.LAMBDA * reg_loss
         losses = dict(cls_loss=cls_loss, reg_loss=reg_loss, loss=loss)
         return losses

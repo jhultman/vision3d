@@ -51,14 +51,14 @@ class ProposalTargetAssigner(nn.Module):
         negative = match_labels.eq(0).any(0) > 0
         positive = match_labels.eq(1).int().sum(0) == 1
         match_labels[:, negative & ~positive] = 0
-        ignore_mask = match_labels.eq(-1).all(0)
+        loss_mask = ~match_labels.eq(-1).all(0, keepdim=True)
         match_labels[match_labels.eq(-1)] = 0
-        return ignore_mask
+        return loss_mask
 
     def get_cls_targets(self, match_labels):
         self.resample_pos_neg(match_labels)
-        ignore_mask = self.handle_assignment_conflicts(match_labels)
-        onehot = torch.cat((match_labels, ignore_mask[None].type_as(match_labels))).float()
+        loss_mask = self.handle_assignment_conflicts(match_labels)
+        onehot = torch.cat((match_labels, loss_mask.long())).float()
         return onehot
 
     def get_reg_targets(self, boxes, matches, match_labels):
@@ -83,7 +83,7 @@ class ProposalTargetAssigner(nn.Module):
         """Match boxes to anchors based on IOU."""
         n_cls, n_yaw, ny, nx, _ = self.anchors.shape
         all_matches = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
-        all_match_labels = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.int8)
+        all_match_labels = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
         for i in range(self.cfg.NUM_CLASSES - 1):
             class_mask = class_idx == i
             if not (class_mask).any():

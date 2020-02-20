@@ -10,7 +10,7 @@ from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
 from .bev import BEVFeatureGatherer
 from .roi_grid_pool import RoiGridPool
-from .backbone import SparseCNN, VoxelFeatureExtractor
+from .backbone import CNN_FACTORY, VoxelFeatureExtractor
 from .proposal import ProposalLayer
 from .refinement import RefinementLayer
 
@@ -27,7 +27,7 @@ class PV_RCNN(nn.Module):
         self.pnets = self.build_pointnets(cfg)
         self.roi_grid_pool = RoiGridPool(cfg)
         self.vfe = VoxelFeatureExtractor()
-        self.cnn = SparseCNN(cfg)
+        self.cnn = CNN_FACTORY[cfg.CNN](cfg)
         self.bev_gatherer = self.build_bev_gatherer(cfg)
         self.proposal_layer = ProposalLayer(cfg)
         self.refinement_layer = RefinementLayer(cfg)

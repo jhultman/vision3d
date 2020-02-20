@@ -1,5 +1,5 @@
 """
-Modified SpMiddleFHD (see github.com/traveller59/second.pytorch).
+SECOND sparse CNNs (see github.com/traveller59/second.pytorch).
 """
 
 import itertools
@@ -61,7 +61,7 @@ class VoxelFeatureExtractor(nn.Module):
         return feature
 
 
-class SparseCNN(nn.Module):
+class SparseCNNBase(nn.Module):
     """
     block      shape    stride
     0    [ 4, 8y, 8x, 41]    1
@@ -73,33 +73,16 @@ class SparseCNN(nn.Module):
 
     def __init__(self, cfg):
         """:grid_shape voxel grid dimensions in ZYX order."""
-        super(SparseCNN, self).__init__()
+        super(SparseCNNBase, self).__init__()
         self.cfg = cfg
         self.grid_shape = compute_grid_shape(cfg)
         self.base_voxel_size = torch.cuda.FloatTensor(cfg.VOXEL_SIZE)
         self.voxel_offset = torch.cuda.FloatTensor(cfg.GRID_BOUNDS[:3])
-        self.block1 = spconv.SparseSequential(
-            make_subm_layer(cfg.C_IN, 16, 3, indice_key="subm0", bias=False),
-            make_subm_layer(16, 16, 3, indice_key="subm0", bias=False),
-            make_sparse_conv_layer(16, 32, 3, 2, padding=1, bias=False),
-        )
-        self.block2 = spconv.SparseSequential(
-            make_subm_layer(32, 32, 3, indice_key="subm1", bias=False),
-            make_subm_layer(32, 32, 3, indice_key="subm1", bias=False),
-            make_sparse_conv_layer(32, 64, 3, 2, padding=1, bias=False),
-        )
-        self.block3 = spconv.SparseSequential(
-            make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
-            make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
-            make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
-            make_sparse_conv_layer(64, 64, 3, 2, padding=[0, 1, 1], bias=False),
-        )
-        self.block4 = spconv.SparseSequential(
-            make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
-            make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
-            make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
-            make_sparse_conv_layer(64, 64, (3, 1, 1), (2, 1, 1), bias=False),
-        )
+        self.make_blocks(cfg)
+
+    def make_blocks(self, cfg):
+        """Subclasses must implement this method."""
+        raise NotImplementedError
 
     def maybe_bias_init(self, module, val):
         if hasattr(module, "bias") and module.bias is not None:
@@ -169,11 +152,57 @@ class SparseCNN(nn.Module):
         x0 = spconv.SparseConvTensor(
             features, coordinates.int(), self.grid_shape, batch_size
         )
-        x1 = self.block1(x0)
-        x2 = self.block2(x1)
-        x3 = self.block3(x2)
-        x4 = self.block4(x3)
+        x1 = self.blocks[0](x0)
+        x2 = self.blocks[1](x1)
+        x3 = self.blocks[2](x2)
+        x4 = self.blocks[3](x3)
         x4 = self.to_bev(x4)
         args = zip(self.cfg.STRIDES, (x0, x1, x2, x3))
         x = list(itertools.starmap(self.to_global, args))
         return x, x4
+
+
+class SpMiddleFHD(SparseCNNBase):
+
+    def make_blocks(self, cfg):
+        blocks = []
+        blocks += [spconv.SparseSequential(
+            make_subm_layer(cfg.C_IN, 16, 3, indice_key="subm0", bias=False),
+            make_subm_layer(16, 16, 3, indice_key="subm0", bias=False),
+            make_sparse_conv_layer(16, 32, 3, 2, padding=1, bias=False),
+        )]
+        blocks += [spconv.SparseSequential(
+            make_subm_layer(32, 32, 3, indice_key="subm1", bias=False),
+            make_subm_layer(32, 32, 3, indice_key="subm1", bias=False),
+            make_sparse_conv_layer(32, 64, 3, 2, padding=1, bias=False),
+        )]
+        blocks += [spconv.SparseSequential(
+            make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
+            make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
+            make_subm_layer(64, 64, 3, indice_key="subm2", bias=False),
+            make_sparse_conv_layer(64, 64, 3, 2, padding=[0, 1, 1], bias=False),
+        )]
+        blocks += [spconv.SparseSequential(
+            make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
+            make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
+            make_subm_layer(64, 64, 3, indice_key="subm3", bias=False),
+            make_sparse_conv_layer(64, 64, (3, 1, 1), (2, 1, 1), bias=False),
+        )]
+        self.blocks = spconv.SparseSequential(*blocks)
+
+
+class SpMiddleFHDLite(SparseCNNBase):
+
+    def make_blocks(self, cfg):
+        self.blocks = spconv.SparseSequential(
+            make_sparse_conv_layer(cfg.C_IN, 32, 3, 2, padding=1, bias=False),
+            make_sparse_conv_layer(32, 64, 3, 2, padding=1, bias=False),
+            make_sparse_conv_layer(64, 64, 3, 2, padding=[0, 1, 1], bias=False),
+            make_sparse_conv_layer(64, 64, (3, 1, 1), (2, 1, 1), bias=False),
+        )
+
+
+CNN_FACTORY = dict(
+    SpMiddleFHD=SpMiddleFHD,
+    SpMiddleFHDLite=SpMiddleFHDLite,
+)

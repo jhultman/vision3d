@@ -9,7 +9,7 @@ Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192): Point-Vox
 - Reproduce results of paper.
 
 ## Status
-This repo is still under active development. I will post a pretrained model when codebase stabilizes and results are acceptable.
+This repo is still under active development. I will post a pretrained model when codebase stabilizes and results are good. I will also add more detailed training and inference instructions.
 
 ## Usage
 See `inference.py`.
