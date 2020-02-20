@@ -1,7 +1,8 @@
 // Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 #include <torch/extension.h>
-#include "rotated_iou/box_iou_rotated.h"
+#include "box_iou_rotated/box_iou_rotated.h"
+#include "nms_rotated/nms_rotated.h"
 
 namespace detectron2 {
 
@@ -59,7 +60,8 @@ std::string get_compiler_version() {
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("get_compiler_version", &get_compiler_version, "get_compiler_version");
   m.def("get_cuda_version", &get_cuda_version, "get_cuda_version");
-  m.def("rotated_iou", &box_iou_rotated, "IoU for rotated boxes");
+  m.def("box_iou_rotated", &box_iou_rotated, "IoU for rotated boxes");
+  m.def("nms_rotated", &nms_rotated, "NMS for rotated boxes");
 }
 
 } // namespace detectron2

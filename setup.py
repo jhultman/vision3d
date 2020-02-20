@@ -8,15 +8,15 @@ from os import path
 from setuptools import find_packages, setup
 from typing import List
 import torch
-from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension. BuildExtension
+from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension, BuildExtension
 
 torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
-assert torch_ver >= [1, 4], "Requires PyTorch >= 1.4"
+assert torch_ver >= [1, 3], "Requires PyTorch >= 1.3"
 
 
 def get_extensions():
     this_dir = path.dirname(path.abspath(__file__))
-    extensions_dir = path.join(this_dir, "pvrcnn", "thirdparty", "csrc")
+    extensions_dir = path.join(this_dir, "pvrcnn", "ops", "csrc")
 
     main_source = path.join(extensions_dir, "vision.cpp")
     sources = glob.glob(path.join(extensions_dir, "**", "*.cpp"))
@@ -68,7 +68,7 @@ if __name__ == '__main__':
         description='Implementation of PV-RCNN algorithm',
         author='Jacob Hultman',
         packages=find_packages(),
-        package_data={'pvrcnn.thirdparty': ['*/*.so']},
+        package_data={'pvrcnn.ops': ['*/*.so']},
         install_requires=[
             'numpy', 'torch', 'yacs', 'tqdm', 'spconv', 'pointnet2', 'torchsearchsorted'],
         ext_modules=get_extensions(),

@@ -1,8 +1,7 @@
 import torch
 from torch import nn
 
-from pvrcnn.ops import rotated_iou
-from pvrcnn.thirdparty import Matcher, subsample_labels
+from pvrcnn.ops import box_iou_rotated, subsample_labels, Matcher
 
 
 class ProposalTargetAssigner(nn.Module):
@@ -25,7 +24,7 @@ class ProposalTargetAssigner(nn.Module):
         return matchers
 
     def compute_iou_matrix(self, boxes, anchors):
-        matrix = rotated_iou(
+        matrix = box_iou_rotated(
             boxes[:, [0, 1, 3, 4, 6]],
             anchors[:, [0, 1, 3, 4, 6]],
         )

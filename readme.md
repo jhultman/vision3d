@@ -43,5 +43,5 @@ and the PV-RCNN paper:
 ## Contributions
 Contributions are welcome.
 
-## License
-Please see `license.md`. Note that the code in `pvrcnn/thirdparty` remains under the `detectron2` Apache license.
+## Acknowledgements and licensing
+Please see `license.md`. Note that most of the code in `pvrcnn/ops` is distributed under the original `detectron2` Apache license.
