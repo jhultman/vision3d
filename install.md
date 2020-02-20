@@ -1,11 +1,20 @@
-## Installation
+# Installation
 
+## Environment
 Tested in environment:
 - Conda
-- torch 1.4
+- PyTorch 1.4
 - CUDA 10.1
 - Ubuntu 18.04
 - Python 3.7
+
+## Installation steps
+0. Creating pytorch environment:
+```
+conda create -n pvrcnn python=3.7
+conda activate pvrcnn
+conda install pytorch torchvision cudatoolkit=10.1 -c pytorch
+```
 
 1. Installing Pointnet2:
 ```

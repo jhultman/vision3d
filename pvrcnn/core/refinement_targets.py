@@ -95,6 +95,4 @@ class RefinementTargetAssigner(nn.Module):
         return targets_cls, targets_reg
 
     def forward(self, item):
-        targets_cls, targets_reg = self.get_targets(item)
-        item.update(dict(ref_targets_cls=targets_cls, ref_targets_reg=targets_reg))
-        return item
+        raise NotImplementedError

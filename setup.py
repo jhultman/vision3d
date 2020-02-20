@@ -2,20 +2,13 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 import glob
-from setuptools import setup, find_packages
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
-
-#######
-
-
-import glob
 import os
 import shutil
 from os import path
 from setuptools import find_packages, setup
 from typing import List
 import torch
-from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
+from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension. BuildExtension
 
 torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
 assert torch_ver >= [1, 4], "Requires PyTorch >= 1.4"

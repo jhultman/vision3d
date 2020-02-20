@@ -13,22 +13,19 @@ class ProposalLayer(nn.Module):
         self.cfg = cfg
 
     def build_heads(self, cfg):
-        """
-        Heads for box regression and classification.
-        TODO: Add orthogonal anchors.
-        """
+        """Heads for box regression and classification."""
         self.conv_cls = nn.Conv2d(
-            cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW, 1)
+            cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES - 1) * cfg.NUM_YAW, 1)
         self.conv_reg = nn.Conv2d(
             cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES - 1) * cfg.NUM_YAW * cfg.BOX_DOF, 1)
 
     def inference(self, features):
-        """TODO: Topk proposal indexing."""
+        """TODO: Sigmoid and topk proposal indexing."""
         raise NotImplementedError
 
     def reshape_cls(self, cls_map):
         B, _, ny, nx = cls_map.shape
-        shape = (B, self.cfg.NUM_CLASSES, self.cfg.NUM_YAW, ny, nx)
+        shape = (B, self.cfg.NUM_CLASSES - 1, self.cfg.NUM_YAW, ny, nx)
         cls_map = cls_map.view(shape)
         return cls_map
 

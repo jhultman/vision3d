@@ -7,8 +7,8 @@ from pvrcnn.thirdparty import Matcher, subsample_labels
 
 class ProposalTargetAssigner(nn.Module):
     """
-    Target assignment algorithm similar to Faster R-CNN.
-    TODO: Refactor target_cls assignment -- too much memory copy.
+    Match ground truth boxes to anchors by IOU.
+    TODO: Refactor target_cls assignment -- too much scatter/indexing.
     """
 
     def __init__(self, cfg, anchors):
@@ -56,18 +56,10 @@ class ProposalTargetAssigner(nn.Module):
         match_labels[match_labels.eq(-1)] = 0
         return ignore_mask
 
-    def fill_onehot(self, onehot, match_labels, ignore_mask):
-        negative = match_labels.eq(0).all(0) & ~ignore_mask
-        onehot[:-2] = match_labels
-        onehot[-2] = negative
-        onehot[-1] = ignore_mask
-
     def get_cls_targets(self, match_labels):
         self.resample_pos_neg(match_labels)
         ignore_mask = self.handle_assignment_conflicts(match_labels)
-        n_cls, n_yaw, ny, nx = match_labels.shape
-        onehot = match_labels.new_zeros((n_cls + 2, n_yaw, ny, nx))
-        self.fill_onehot(onehot, match_labels, ignore_mask)
+        onehot = torch.cat((match_labels, ignore_mask[None].type_as(match_labels))).float()
         return onehot
 
     def get_reg_targets(self, boxes, matches, match_labels):

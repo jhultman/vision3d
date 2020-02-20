@@ -1,3 +1,4 @@
+import os
 import os.path as osp
 import numpy as np
 import torch
@@ -30,6 +31,7 @@ def save_cpkt(model, optimizer, epoch, meta=None):
         epoch=epoch,
         meta=meta,
     )
+    os.makedirs('./ckpts', exist_ok=True)
     torch.save(ckpt, fpath)
 
 
