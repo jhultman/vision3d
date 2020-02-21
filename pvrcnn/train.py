@@ -3,9 +3,7 @@ import os.path as osp
 import numpy as np
 import torch
 from tqdm import tqdm
-from collections import defaultdict
 from torch.utils.data import DataLoader
-from visdom import Visdom
 
 from pvrcnn.detector import ProposalLoss
 from pvrcnn.core import cfg, TrainPreprocessor, VisdomLinePlotter
@@ -86,4 +84,5 @@ def main():
 if __name__ == '__main__':
     global plotter
     plotter = VisdomLinePlotter(env='training')
+    cfg.merge_from_file('../configs/car_lite.yaml')
     main()

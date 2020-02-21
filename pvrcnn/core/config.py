@@ -41,7 +41,7 @@ _C.ANCHORS = [
         'iou_thresh': [0.20, 0.35],
         'center_z': -0.6,
     },
-][:1]
+]
 _C.NUM_PROPOSAL_SAMPLE = 256
 _C.ALLOW_LOW_QUALITY_MATCHES = True
 _C.NUM_CLASSES = len(_C.ANCHORS)
