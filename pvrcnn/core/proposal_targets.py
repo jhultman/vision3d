@@ -13,7 +13,7 @@ class ProposalTargetAssigner(nn.Module):
     def __init__(self, cfg, anchors):
         super(ProposalTargetAssigner, self).__init__()
         self.cfg = cfg
-        self.anchors = anchors
+        self.anchors = anchors.cuda()
         self.matchers = self.build_matchers(cfg)
 
     def build_matchers(self, cfg):
@@ -67,7 +67,7 @@ class ProposalTargetAssigner(nn.Module):
         TODO: Angle binning.
         """
         A = self.anchors[match_labels == 1]
-        G = boxes[matches[match_labels == 1]]
+        G = boxes[matches[match_labels == 1]].cuda()
         G_xyz, G_wlh, G_yaw = G.split([3, 3, 1], -1)
         A_xyz, A_wlh, A_yaw = A.split([3, 3, 1], -1)
         values = torch.cat((
@@ -89,7 +89,7 @@ class ProposalTargetAssigner(nn.Module):
             if not (class_mask).any():
                 continue
             anchors_i = self.anchors[i].view(-1, self.cfg.BOX_DOF)
-            iou_matrix = self.compute_iou_matrix(boxes[class_mask].cuda(), anchors_i.cuda())
+            iou_matrix = self.compute_iou_matrix(boxes[class_mask].cuda(), anchors_i)
             matches, match_labels = self.matchers[i](iou_matrix)
             all_matches[i].view(-1)[:] = matches
             all_match_labels[i].view(-1)[:] = match_labels
