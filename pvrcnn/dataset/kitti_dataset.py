@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 
 from pvrcnn.core import ProposalTargetAssigner, AnchorGenerator
 from .kitti_utils import read_calib, read_label, read_velo
+from .augmentation import ChainedAugmentation
 
 
 class KittiDataset(Dataset):
@@ -18,12 +19,14 @@ class KittiDataset(Dataset):
     """
 
     def __init__(self, cfg, split):
+        super(KittiDataset, self).__init__()
         self.split = split
         self.rootdir = cfg.DATA.ROOTDIR
         self.load_annotations(cfg)
         if split == 'train':
             anchors = AnchorGenerator(cfg).anchors
             self.target_assigner = ProposalTargetAssigner(cfg, anchors)
+            self.augmentation = ChainedAugmentation(cfg)
         self.cfg = cfg
 
     def __len__(self):
@@ -75,10 +78,8 @@ class KittiDataset(Dataset):
         return obj
 
     def stack_boxes(self, item):
-        boxes = [obj['box'] for obj in item['objects']]
-        class_idx = [obj['class_idx'] for obj in item['objects']]
-        boxes = torch.FloatTensor(boxes)
-        class_idx = torch.LongTensor(class_idx)
+        boxes = np.stack([obj['box'] for obj in item['objects']])
+        class_idx = np.r_[[obj['class_idx'] for obj in item['objects']]]
         item.update(dict(boxes=boxes, class_idx=class_idx))
 
     def make_objects(self, item):
@@ -92,19 +93,26 @@ class KittiDataset(Dataset):
 
     def filter_bad_boxes(self, item):
         class_idx = item['class_idx'][:, None]
-        xyz, wlh, _ = item['boxes'].split([3, 3, 1], dim=1)
-        lower, upper = torch.tensor(self.cfg.GRID_BOUNDS).split([3, 3])
+        xyz, wlh, _ = np.split(item['boxes'], [3, 6], 1)
+        lower, upper = np.split(self.cfg.GRID_BOUNDS, [3])
         keep = ((xyz >= lower) & (xyz <= upper) &
             (class_idx != -1) & (wlh > 0)).all(1)
         item['boxes'] = item['boxes'][keep]
         item['class_idx'] = item['class_idx'][keep]
+
+    def train_processing(self, item):
+        points, boxes = self.augmentation(item['points'], item['boxes'])
+        item.update(dict(points=points, boxes=boxes))
+        self.filter_bad_boxes(item)
+        item['boxes'] = torch.FloatTensor(item['boxes'])
+        item['class_idx'] = torch.LongTensor(item['class_idx'])
+        self.target_assigner(item)
 
     def __getitem__(self, idx):
         item = deepcopy(self.annotations[self.inds[idx]])
         item['points'] = read_velo(item['velo_path'])
         self.make_objects(item)
         if self.split == 'train':
-            self.filter_bad_boxes(item)
-            self.target_assigner(item)
+            self.train_processing(item)
         self.drop_keys(item)
         return item

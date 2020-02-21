@@ -91,8 +91,15 @@ _C.DATA.ROOTDIR = '../data/kitti/training/'
 _C.TRAIN = CN()
 _C.TRAIN.LR = 1e-4
 _C.TRAIN.LAMBDA = 1.0
-_C.TRAIN.EPOCHS = 50
+_C.TRAIN.EPOCHS = 100
 _C.TRAIN.BATCH_SIZE = 6
 _C.TRAIN.PROPOSAL_NUM_NEGATIVES = 128
+
+# Data augmentation
+_C.AUG = CN()
+_C.AUG.GLOBAL_SCALE = [0.95, 1.05]
+_C.AUG.GLOBAL_ROTATION = [-np.pi / 4, +np.pi / 4]
+_C.AUG.FLIP_HORIZONTAL = True
+_C.AUG.DATABASE_SAMPLE = False
 
 cfg = _C

@@ -1,0 +1,9 @@
+ANCHORS: [{
+  names: ['Car', 'Van'],
+  wlh: [1.6, 3.9, 1.56],
+  yaw: [0, 1.501],
+  iou_thresh: [0.45, 0.60],
+  center_z: -1.0,
+}]
+NUM_CLASSES: 1
+CNN: 'SpMiddleFHD'

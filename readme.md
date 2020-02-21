@@ -8,14 +8,14 @@ Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192): Point-Vox
 - Simple, easy-to-use API.
 - Reproduce results of paper.
 
-## Status
-This repo is still under active development. I will post a pretrained model when codebase stabilizes and results are good. I will also add more detailed training and inference instructions.
+## Status and plans
+This repo is under active development. I will post a pretrained model when codebase stabilizes and results are good. I will also add more detailed training and inference instructions.
 
 ## Usage
-See `inference.py`.
+See [inference.py](pvrcnn/inference.py).
 
 ## Installation
-See `install.md`.
+See [install.md](install.md) and please ask if you have any questions. I will supply a Docker build soon.
 
 ## Citing
 If you use this work in your research, please consider citing:
@@ -44,4 +44,4 @@ and the PV-RCNN paper:
 Contributions are welcome.
 
 ## Acknowledgements and licensing
-Please see `license.md`. Note that most of the code in `pvrcnn/ops` is distributed under the original `detectron2` Apache license.
+Please see [license.md](license.md). Note that the code in `pvrcnn/ops` is largely from [detectron2](https://github.com/facebookresearch/detectron2) and hence is subject to the Apache [license](pvrcnn/ops/LICENSE).

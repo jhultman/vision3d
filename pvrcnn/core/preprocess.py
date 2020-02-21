@@ -72,22 +72,23 @@ class TrainPreprocessor(Preprocessor):
 
     def __init__(self, cfg):
         super(TrainPreprocessor, self).__init__(cfg)
+        self.cuda_keys = ['proposal_targets_cls', 'proposal_targets_reg']
 
-    def collate_mapping(self, key):
-        torch_stack = ['proposal_targets_cls', 'proposal_targets_reg']
-        identity = ['idx', 'points', 'boxes', 'class_idx']
-        if key in torch_stack:
-            return torch.stack
-        return lambda x: x
+    def collate_mapping(self, key, val):
+        if key in self.cuda_keys:
+            return torch.stack(val)
+        return val
+
+    def device_mapping(self, key, val):
+        if key in self.cuda_keys:
+            return val.cuda()
+        return val
 
     def collate(self, items):
         batch_item = defaultdict(list)
         for item in items:
             for key, val in item.items():
-                if isinstance(val, torch.Tensor):
-                    batch_item[key] += [val.cuda()]
-                else:
-                    batch_item[key] += [val]
+                batch_item[key] += [self.device_mapping(key, val)]
         for key, val in batch_item.items():
-            batch_item[key] = self.collate_mapping(key)(val)
+            batch_item[key] = self.collate_mapping(key, val)
         return self(dict(batch_item))

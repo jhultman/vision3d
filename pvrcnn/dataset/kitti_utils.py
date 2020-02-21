@@ -43,7 +43,7 @@ def read_calib(calib_filename):
     return Calibration(calib_filename)
 
 
-class Object3d(object):
+class Object3d:
     """ 3d object label """
     def __init__(self, label_file_line):
         data = label_file_line.split(" ")
