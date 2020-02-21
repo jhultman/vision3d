@@ -84,7 +84,7 @@ class ProposalTargetAssigner(nn.Module):
         n_cls, n_yaw, ny, nx, _ = self.anchors.shape
         all_matches = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
         all_match_labels = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
-        for i in range(self.cfg.NUM_CLASSES - 1):
+        for i in range(self.cfg.NUM_CLASSES):
             class_mask = class_idx == i
             if not (class_mask).any():
                 continue

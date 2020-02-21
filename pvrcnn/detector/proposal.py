@@ -18,9 +18,9 @@ class ProposalLayer(nn.Module):
     def build_heads(self, cfg):
         """Heads for box regression and classification."""
         self.conv_cls = nn.Conv2d(
-            cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES - 1) * cfg.NUM_YAW, 1)
+            cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW, 1)
         self.conv_reg = nn.Conv2d(
-            cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES - 1) * cfg.NUM_YAW * cfg.BOX_DOF, 1)
+            cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW * cfg.BOX_DOF, 1)
 
     def inference(self, feature_map):
         """
@@ -28,19 +28,19 @@ class ProposalLayer(nn.Module):
         """
         cls_map, reg_map = self(feature_map)
         scores = cls_map.sigmoid()
-        class_idx = torch.arange(self.cfg.NUM_CLASSES) - 1
+        class_idx = torch.arange(self.cfg.NUM_CLASSES)
         class_idx = class_idx[None, :, None, None, None].expand_as(scores)
         raise NotImplementedError
 
     def reshape_cls(self, cls_map):
         B, _, ny, nx = cls_map.shape
-        shape = (B, self.cfg.NUM_CLASSES - 1, self.cfg.NUM_YAW, ny, nx)
+        shape = (B, self.cfg.NUM_CLASSES, self.cfg.NUM_YAW, ny, nx)
         cls_map = cls_map.view(shape)
         return cls_map
 
     def reshape_reg(self, reg_map):
         B, _, ny, nx = reg_map.shape
-        shape = (B, self.cfg.NUM_CLASSES - 1, self.cfg.BOX_DOF, -1, ny, nx)
+        shape = (B, self.cfg.NUM_CLASSES, self.cfg.BOX_DOF, -1, ny, nx)
         reg_map = reg_map.view(shape).permute(0, 1, 3, 4, 5, 2)
         return reg_map
 
@@ -91,7 +91,7 @@ class ProposalLoss(nn.Module):
     def forward(self, item):
         G_cls, G_reg = map(item.get, ['proposal_targets_cls', 'proposal_targets_reg'])
         P_cls, P_reg = map(item.get, ['proposal_scores', 'proposal_boxes'])
-        G_cls, mask_cls = G_cls.split([self.cfg.NUM_CLASSES - 1, 1], dim=1)
+        G_cls, mask_cls = G_cls.split([self.cfg.NUM_CLASSES, 1], dim=1)
         mask_reg = G_cls[:, :-1, ..., None].sum(1, keepdim=True)
         cls_loss = self.cls_loss(P_cls, G_cls, mask_cls)
         reg_loss = self.reg_loss(P_reg, G_reg, mask_reg)

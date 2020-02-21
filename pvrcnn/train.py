@@ -79,7 +79,7 @@ def main():
     dataloader_train = build_train_dataloader(cfg, preprocessor)
     parameters = get_proposal_parameters(model)
     optimizer = torch.optim.Adam(parameters, lr=cfg.TRAIN.LR)
-    start_epoch = load_ckpt('./ckpts/epoch_4.pth', model, optimizer)
+    start_epoch = load_ckpt('./ckpts/epoch_3.pth', model, optimizer)
     train_model(model, dataloader_train, optimizer, loss_fn, cfg.TRAIN.EPOCHS, start_epoch)
 
 

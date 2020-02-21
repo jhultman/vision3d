@@ -54,8 +54,8 @@ class AnchorGenerator(nn.Module):
         num_yaw = self.anchor_attributes['yaw'].shape[1]
         anchor_z = self.anchor_attributes['center_z']
         centers = meshgrid_midpoint(*meshgrid_params)[:, :, None]
-        centers = centers.expand(-1, -1, num_yaw, self.cfg.NUM_CLASSES - 1, -1)
-        centers[:, :, :, torch.arange(self.cfg.NUM_CLASSES - 1), 2] = anchor_z
+        centers = centers.expand(-1, -1, num_yaw, self.cfg.NUM_CLASSES, -1)
+        centers[:, :, :, torch.arange(self.cfg.NUM_CLASSES), 2] = anchor_z
         return centers
 
     def make_anchor_angles(self, nx, ny):

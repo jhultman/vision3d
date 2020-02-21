@@ -54,7 +54,7 @@ class RefinementTargetAssigner(nn.Module):
         """
         B, N, _ = shape
         targets_cls = torch.zeros(
-            (B, N, self.num_classes + 1), dtype=torch.long, device=device)
+            (B, N, self.num_classes + 2), dtype=torch.long, device=device)
         targets_cls[..., -1] = 1
         self.fill_negatives(targets_cls)
         self.fill_positives(targets_cls, inds)
