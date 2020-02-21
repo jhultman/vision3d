@@ -6,6 +6,11 @@ from torchvision.ops import boxes as box_ops
 from torchvision.ops import nms  # BC-compat
 
 from pvrcnn import _C
+from pvrcnn._C import box_iou_rotated
+
+
+def box_iou_rotated_3d(boxes1, boxes2):
+    raise NotImplementedError
 
 
 def batched_nms(boxes, scores, idxs, iou_threshold):
