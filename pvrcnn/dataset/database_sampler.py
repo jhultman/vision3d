@@ -66,14 +66,26 @@ class PointsInCuboids:
         mask = (z1 > z2 - h / 2) & (z1 < z2 + h / 2)
         return mask
 
-    def __call__(self, boxes):
-        """Return list of points in each box."""
+    def _get_mask(self, boxes):
         polygons = center_to_corner_box2d(boxes)
         mask = self._height_threshold(boxes)
         mask &= points_in_convex_polygon(
             self.points[:, :2], polygons)
-        points = list(map(self.points.__getitem__, mask.T))
+        return mask
+
+    def __call__(self, boxes):
+        """Return list of points in each box."""
+        mask = self._get_mask(boxes).T
+        points = list(map(self.points.__getitem__, mask))
         return points
+
+
+class PointsNotInCuboids(PointsInCuboids):
+
+    def __call__(self, boxes):
+        """Return array of points not in any box."""
+        mask = ~self._get_mask(boxes).any(1)
+        return self.points[mask]
 
 
 def points_in_convex_polygon(points, polygon, ccw=True):

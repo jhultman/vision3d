@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import itertools
 
+from .database_sampler import PointsNotInCuboids
 from pvrcnn.ops import box_iou_rotated
 
 
@@ -133,7 +134,7 @@ class SampleAugmentation(Augmentation):
             torch.from_numpy(sample_boxes),
         )).float().cuda()[:, [0, 1, 3, 4, 6]]
         iou = box_iou_rotated(boxes, boxes).cpu().numpy()
-        mask = (iou > 1e-2).sum(1)[N:] == 0
+        mask = (iou > 1e-2).sum(1)[N:] == 1
         return mask
 
     def _translate_points(self, points, position):
@@ -177,6 +178,7 @@ class SampleAugmentation(Augmentation):
         self.random_translate(samples)
         mask = self.filter_collisions(boxes, samples['boxes'])
         self.mask_samples(samples, mask)
+        points = PointsNotInCuboids(points)(samples['boxes'])
         points, boxes, class_idx = self.cat_samples(
             samples, points, boxes, class_idx)
         return points, boxes, class_idx
