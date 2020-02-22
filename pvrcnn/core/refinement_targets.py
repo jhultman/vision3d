@@ -30,7 +30,9 @@ class RefinementTargetAssigner(nn.Module):
         return mask
 
     def fill_negatives(self, targets_cls):
-        (B, N, _), M = targets_cls.shape, self.cfg.TRAIN.PROPOSAL_NUM_NEGATIVES
+        """TODO: REFINEMENT_NUM_NEGATIVES needs rethinking."""
+        M = self.cfg.TRAIN.REFINEMENT_NUM_NEGATIVES
+        (B, N, _) = targets_cls.shape
         inds = torch.randint(N, (B, M), dtype=torch.long)
         targets_cls[:, inds, -2] = 1
         targets_cls[:, inds, -1] = 0

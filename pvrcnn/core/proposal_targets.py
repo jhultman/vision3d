@@ -32,6 +32,8 @@ class ProposalTargetAssigner(nn.Module):
 
     def resample_pos_neg(self, match_labels):
         """Tries to sample positives and negatives 50/50."""
+        if self.cfg.NUM_PROPOSAL_SAMPLE < 0:
+            return
         match_labels = match_labels.view(-1)
         pos_idx, neg_idx = subsample_labels(
             match_labels, self.cfg.NUM_PROPOSAL_SAMPLE, 0.5, 0
@@ -64,7 +66,7 @@ class ProposalTargetAssigner(nn.Module):
     def get_reg_targets(self, boxes, matches, match_labels):
         """
         Standard VoxelNet-style box encoding.
-        TODO: Angle binning.
+        TODO: Angle binning, angle periodicity.
         """
         A = self.anchors[match_labels == 1]
         G = boxes[matches[match_labels == 1]].cuda()
