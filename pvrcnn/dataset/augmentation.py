@@ -1,4 +1,10 @@
+import pickle
+import os.path as osp
 import numpy as np
+import torch
+import itertools
+
+from pvrcnn.ops import box_iou_rotated
 
 
 class Augmentation:
@@ -9,8 +15,27 @@ class Augmentation:
     def uniform(self, *args):
         return np.float32(np.random.uniform(*args))
 
-    def __call__(self, points, boxes):
+    def __call__(self, points, boxes, *args):
         raise NotImplementError
+
+
+class ChainedAugmentation(Augmentation):
+
+    def __init__(self, cfg):
+        super(ChainedAugmentation, self).__init__(cfg)
+        self.augmentations = [
+            SampleAugmentation(cfg),
+            FlipAugmentation(cfg),
+            ScaleAugmentation(cfg),
+            RotateAugmentation(cfg),
+        ]
+
+    def __call__(self, points, boxes, class_idx):
+        points, boxes, class_idx = self.augmentations[0](
+            points, boxes, class_idx)
+        for aug in self.augmentations[1:]:
+            points, boxes = aug(points, boxes)
+        return points, boxes, class_idx
 
 
 class RotateAugmentation(Augmentation):
@@ -78,17 +103,80 @@ class ScaleAugmentation(Augmentation):
         return points, boxes
 
 
-class ChainedAugmentation(Augmentation):
+class SampleAugmentation(Augmentation):
 
     def __init__(self, cfg):
-        super(ChainedAugmentation, self).__init__(cfg)
-        self.augmentations = [
-            FlipAugmentation(cfg),
-            ScaleAugmentation(cfg),
-            RotateAugmentation(cfg),
-        ]
+        super(SampleAugmentation, self).__init__(cfg)
+        self._load_database(cfg)
 
-    def __call__(self, points, boxes):
-        for aug in self.augmentations:
-            points, boxes = aug(points, boxes)
-        return points, boxes
+    def _load_database(self, cfg):
+        fpath = osp.join(cfg.DATA.CACHEDIR, 'database.pkl')
+        with open(fpath, 'rb') as f:
+            self.database = pickle.load(f)
+
+    def draw_samples(self):
+        samples = []
+        for class_idx in range(self.cfg.NUM_CLASSES):
+            indices = np.random.choice(
+                len(self.database[class_idx]),
+                self.cfg.AUG.NUM_SAMPLE_OBJECTS[class_idx],
+            ).tolist()
+            _samples = [self.database[class_idx][i] for i in indices]
+            list(map(lambda s: s.update(dict(class_idx=class_idx)), _samples))
+            samples += list(_samples)
+        return samples
+
+    def filter_collisions(self, boxes, sample_boxes):
+        N = boxes.shape[0]
+        boxes = torch.cat((
+            torch.from_numpy(boxes),
+            torch.from_numpy(sample_boxes),
+        )).float().cuda()[:, [0, 1, 3, 4, 6]]
+        iou = box_iou_rotated(boxes, boxes).cpu().numpy()
+        mask = (iou > 1e-2).sum(1)[N:] == 0
+        return mask
+
+    def _translate_points(self, points, position):
+        """Apply box translations to corresponding points."""
+        _points = []
+        for points_i, position_i in zip(points, position):
+            xy, zi = np.split(points_i, [2], 1)
+            _points += [np.concatenate((xy + position_i, zi), 1)]
+        return _points
+
+    def random_translate(self, samples):
+        """Apply random translation to sampled boxes."""
+        boxes = samples['boxes']
+        lower, upper = np.r_[self.cfg.GRID_BOUNDS].reshape(3, 2)[:2].T
+        position = np.random.rand(len(boxes), 2) * (upper - lower) + lower
+        samples['boxes'] = boxes + np.pad(position, ((0, 0), (0, 5)))
+        samples['points'] = self._translate_points(samples['points'], position)
+        return boxes, position
+
+    def reorganize_samples(self, samples):
+        _samples = dict()
+        for key in ['points', 'box', 'class_idx']:
+            _samples[key] = [s[key] for s in samples]
+        _samples['boxes'] = np.stack(_samples.pop('box'))
+        return _samples
+
+    def mask_samples(self, samples, mask):
+        samples['boxes'] = samples['boxes'][mask]
+        samples['points'] = list(itertools.compress(samples['points'], mask))
+        samples['class_idx'] = list(itertools.compress(samples['class_idx'], mask))
+
+    def cat_samples(self, samples, points, boxes, class_idx):
+        points = np.concatenate([points] + samples['points'])
+        boxes = np.concatenate((boxes, samples['boxes']))
+        class_idx = np.concatenate((class_idx, samples['class_idx']))
+        return points, boxes, class_idx
+
+    def __call__(self, points, boxes, class_idx):
+        samples = self.draw_samples()
+        samples = self.reorganize_samples(samples)
+        self.random_translate(samples)
+        mask = self.filter_collisions(boxes, samples['boxes'])
+        self.mask_samples(samples, mask)
+        points, boxes, class_idx = self.cat_samples(
+            samples, points, boxes, class_idx)
+        return points, boxes, class_idx

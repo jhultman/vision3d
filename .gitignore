@@ -13,3 +13,6 @@ dist/*
 pvrcnn.egg-info/*
 
 notebooks/*
+
+pvrcnn/eval/*
+pvrcnn/core/viz_detections.py

@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from pvrcnn.core import ProposalTargetAssigner, AnchorGenerator
 from .kitti_utils import read_calib, read_label, read_velo
 from .augmentation import ChainedAugmentation
+from .database_sampler import DatabaseBuilder
 
 
 class KittiDataset(Dataset):
@@ -24,6 +25,7 @@ class KittiDataset(Dataset):
         self.rootdir = cfg.DATA.ROOTDIR
         self.load_annotations(cfg)
         if split == 'train':
+            DatabaseBuilder(cfg, self.annotations)
             anchors = AnchorGenerator(cfg).anchors
             self.target_assigner = ProposalTargetAssigner(cfg, anchors)
             self.augmentation = ChainedAugmentation(cfg)
@@ -40,7 +42,7 @@ class KittiDataset(Dataset):
         fpath = osp.join(cfg.DATA.CACHEDIR, f'{self.split}.pkl')
         if not osp.isfile(fpath):
             return False
-        print('Reading cached annotations.')
+        print(f'Found cached annotations: {fpath}')
         with open(fpath, 'rb') as f:
             self.annotations = pickle.load(f)
         return True
@@ -50,12 +52,13 @@ class KittiDataset(Dataset):
         with open(fpath, 'wb') as f:
             pickle.dump(self.annotations, f)
 
-    def create_anno(self, idx, cfg):
+    def create_annotation(self, idx, cfg):
         velo_path = osp.join(cfg.DATA.ROOTDIR, 'velodyne_reduced', f'{idx:06d}.bin')
         calib = read_calib(osp.join(cfg.DATA.ROOTDIR, 'calib', f'{idx:06d}.txt'))
         objects = read_label(osp.join(cfg.DATA.ROOTDIR, 'label_2', f'{idx:06d}.txt'))
-        annotation = dict(velo_path=velo_path, calib=calib, objects=objects, idx=idx)
-        return annotation
+        item = dict(velo_path=velo_path, calib=calib, objects=objects, idx=idx)
+        self.make_simple_objects(item)
+        return item
 
     def load_annotations(self, cfg):
         self.read_splitfile(cfg)
@@ -64,7 +67,7 @@ class KittiDataset(Dataset):
         print('Generating annotations...')
         self.annotations = dict()
         for idx in tqdm(self.inds):
-            self.annotations[idx] = self.create_anno(idx, cfg)
+            self.annotations[idx] = self.create_annotation(idx, cfg)
         self.cache_annotations(cfg)
 
     def make_simple_object(self, obj, calib):
@@ -77,33 +80,37 @@ class KittiDataset(Dataset):
         obj = dict(box=box, class_idx=obj.class_idx)
         return obj
 
-    def stack_boxes(self, item):
-        boxes = np.stack([obj['box'] for obj in item['objects']])
-        class_idx = np.r_[[obj['class_idx'] for obj in item['objects']]]
-        item.update(dict(boxes=boxes, class_idx=class_idx))
-
-    def make_objects(self, item):
-        item['objects'] = [self.make_simple_object(
+    def make_simple_objects(self, item):
+        objects = [self.make_simple_object(
             obj, item['calib']) for obj in item['objects']]
-        self.stack_boxes(item)
+        item['boxes'] = np.stack([obj['box'] for obj in objects])
+        item['class_idx'] = np.r_[[obj['class_idx'] for obj in objects]]
 
     def drop_keys(self, item):
         for key in ['velo_path', 'objects', 'calib']:
             item.pop(key)
 
-    def filter_bad_boxes(self, item):
+    def filter_bad_objects(self, item):
         class_idx = item['class_idx'][:, None]
-        xyz, wlh, _ = np.split(item['boxes'], [3, 6], 1)
+        _, wlh, _ = np.split(item['boxes'], [3, 6], 1)
+        keep = ((class_idx != -1) & (wlh > 0)).all(1)
+        item['boxes'] = item['boxes'][keep]
+        item['class_idx'] = item['class_idx'][keep]
+
+    def filter_out_of_bounds(self, item):
+        xyz, _, _ = np.split(item['boxes'], [3, 6], 1)
         lower, upper = np.split(self.cfg.GRID_BOUNDS, [3])
-        keep = ((xyz >= lower) & (xyz <= upper) &
-            (class_idx != -1) & (wlh > 0)).all(1)
+        keep = ((xyz >= lower) & (xyz <= upper)).all(1)
         item['boxes'] = item['boxes'][keep]
         item['class_idx'] = item['class_idx'][keep]
 
     def train_processing(self, item):
-        points, boxes = self.augmentation(item['points'], item['boxes'])
-        item.update(dict(points=points, boxes=boxes))
-        self.filter_bad_boxes(item)
+        self.filter_bad_objects(item)
+        points, boxes, class_idx = self.augmentation(
+            item['points'], item['boxes'], item['class_idx'])
+        item.update(dict(points=points, boxes=boxes, class_idx=class_idx))
+        self.filter_out_of_bounds(item)
+        item['points'] = np.float32(item['points'])
         item['boxes'] = torch.FloatTensor(item['boxes'])
         item['class_idx'] = torch.LongTensor(item['class_idx'])
         self.target_assigner(item)
@@ -111,7 +118,6 @@ class KittiDataset(Dataset):
     def __getitem__(self, idx):
         item = deepcopy(self.annotations[self.inds[idx]])
         item['points'] = read_velo(item['velo_path'])
-        self.make_objects(item)
         if self.split == 'train':
             self.train_processing(item)
         self.drop_keys(item)
