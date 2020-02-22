@@ -32,8 +32,9 @@ class ChainedAugmentation(Augmentation):
         ]
 
     def __call__(self, points, boxes, class_idx):
-        points, boxes, class_idx = self.augmentations[0](
-            points, boxes, class_idx)
+        if self.cfg.AUG.DATABASE_SAMPLE:
+            points, boxes, class_idx = self.augmentations[0](
+                points, boxes, class_idx)
         for aug in self.augmentations[1:]:
             points, boxes = aug(points, boxes)
         return points, boxes, class_idx
