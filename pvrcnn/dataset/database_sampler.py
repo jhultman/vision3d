@@ -1,8 +1,8 @@
-import tqdm
 import pickle
 import itertools
 import numpy as np
 import os.path as osp
+from tqdm import tqdm
 from collections import defaultdict
 
 from .kitti_utils import read_velo
@@ -19,9 +19,8 @@ class DatabaseBuilder:
         if osp.isfile(self.fpath):
             print(f'Found cached database: {self.fpath}')
             return
-        print('Building database...')
         database = defaultdict(list)
-        for item in tqdm.tqdm(annotations.values()):
+        for item in tqdm(annotations.values(), desc='Building database'):
             for key, val in zip(*self._process_item(item)):
                 database[key] += [val]
         self._save_database(dict(database))

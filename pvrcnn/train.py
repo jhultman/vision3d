@@ -58,7 +58,7 @@ def to_device(item):
 def train_model(model, dataloader, optimizer, loss_fn, epochs, start_epoch=0):
     model.train()
     for epoch in range(start_epoch, epochs):
-        for step, item in enumerate(tqdm(dataloader)):
+        for step, item in enumerate(tqdm(dataloader, desc=f'Epoch {epoch}')):
             to_device(item)
             optimizer.zero_grad()
             out = model(item, proposals_only=True)
