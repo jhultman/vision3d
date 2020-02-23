@@ -4,9 +4,9 @@ An unofficial Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.131
 ![PV-RCNN](images/pvrcnn.png)
 
 ## News (02/22/2020)
-- Add database sampling augmentation (see [augmentation.py](https://github.com/jhultman/PV-RCNN/blob/03a0b92af929371cce91e1666b92f92192e49129/pvrcnn/dataset/augmentation.py#L108) for details).
+- Add database sampling augmentation (see [augmentation.py](https://github.com/jhultman/PV-RCNN/blob/master/pvrcnn/dataset/augmentation.py#L108) for details).
 - Add fast rotated nms on gpu for target assignment and inference (from detectron2).
-- Code refactor.
+- Code refactor and bug fixes.
 
 ## Project goals
 - Simple inference (require only numpy array of raw points).

@@ -7,7 +7,8 @@ from pvrcnn.ops import box_iou_rotated, subsample_labels, Matcher
 class ProposalTargetAssigner(nn.Module):
     """
     Match ground truth boxes to anchors by IOU.
-    TODO: Refactor target_cls assignment -- too much scatter/indexing.
+    TODO: Simplify target_cls assignment.
+    TODO: Make this run faster.
     """
 
     def __init__(self, cfg, anchors):
@@ -35,6 +36,7 @@ class ProposalTargetAssigner(nn.Module):
         1. Disable ambiguous (matched to multiple classes).
         2. Clobber ignore with negative.
         3. Replace ignore -1 marker with binary mask.
+        TODO: This code is hard to understand.
         """
         ambiguous = match_labels.eq(1).int().sum(0) > 1
         match_labels[:, ambiguous] = -1
@@ -51,13 +53,13 @@ class ProposalTargetAssigner(nn.Module):
         A_norm = torch.cat((A_norm, A_h), -1)
         return A_norm
 
-    def get_reg_targets(self, boxes, box_idx, match_labels):
+    def get_reg_targets(self, boxes, box_idx, G_cls):
         """
         Standard VoxelNet-style box encoding.
         TODO: Angle binning, angle periodicity.
         """
-        A = self.anchors[match_labels == 1]
-        G = boxes[box_idx[match_labels == 1]].cuda()
+        A = self.anchors[G_cls == 1]
+        G = boxes[box_idx[G_cls == 1]].cuda()
         G_xyz, G_wlh, G_yaw = G.split([3, 3, 1], -1)
         A_xyz, A_wlh, A_yaw = A.split([3, 3, 1], -1)
         A_norm = self._encode_diagonal(A_wlh)
@@ -66,18 +68,18 @@ class ProposalTargetAssigner(nn.Module):
             (G_wlh / A_wlh).log(),
             (G_yaw - A_yaw)), dim=-1
         )
-        targets = torch.zeros_like(self.anchors)
-        targets[match_labels == 1] = values
-        mask_reg = match_labels[:, :-1, ..., None].sum(1, keepdim=True).float()
-        return targets, mask_reg
+        G_reg = torch.zeros_like(self.anchors)
+        G_reg[G_cls == 1] = values
+        M_reg = G_cls[:, :-1, ..., None].sum(1, keepdim=True).float()
+        return G_reg, M_reg
 
     def get_matches(self, boxes, class_idx):
         """Match boxes to anchors based on IOU."""
         n_cls, n_yaw, ny, nx, _ = self.anchors.shape
         all_matches = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
         all_match_labels = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
-        box_idx_mapper = torch.arange(boxes.shape[0]) # maps masked box_idx to original
-        for i in range(self.cfg.NUM_CLASSES):
+        box_idx_mapper = torch.arange(boxes.shape[0])
+        for i in range(n_cls):
             anchors_i = self.anchors[i].view(-1, self.cfg.BOX_DOF)
             iou = self.compute_iou(boxes[class_idx == i].cuda(), anchors_i)
             matches, match_labels = self.matchers[i](iou)

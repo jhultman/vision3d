@@ -16,7 +16,7 @@ _C.VOXEL_SIZE = [0.05, 0.05, 0.1]
 _C.GRID_BOUNDS = [0, -40, -3, 70.4, 40, 1]
 
 # Sparse CNN
-_C.CNN = 'SpMiddleFHDLite'
+_C.CNN = 'SpMiddleFHD'
 
 # Classes
 _C.ANCHORS = [
