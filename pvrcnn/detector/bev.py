@@ -11,9 +11,12 @@ class BEVFeatureGatherer(nn.Module):
         self.pixel_offset = voxel_offset[:2]
         self.base_pixel_size = base_voxel_size[:2]
 
-    def normalize_grid_sample_indices(self, indices, H, W):
-        """F.grid_sample expects normalized indices on (-1, +1)."""
-        image_dims = indices.new_tensor([H - 1, W - 1])
+    def normalize_indices(self, indices, H, W):
+        """
+        F.grid_sample expects normalized indices on (-1, +1).
+        Note: We swap H and W because spconv transposes the feature map.
+        """
+        image_dims = indices.new_tensor([W - 1, H - 1])
         indices = torch.min(torch.clamp(indices, min=0), image_dims)
         indices = 2 * (indices / (image_dims - 1)) - 1
         return indices
@@ -22,7 +25,7 @@ class BEVFeatureGatherer(nn.Module):
         """Convert xyz coordinates to fractional BEV indices."""
         indices = keypoint_xyz[:, None, :, :2] - self.pixel_offset
         indices = indices / (self.base_pixel_size * self.cfg.STRIDES[-1])
-        indices = self.normalize_grid_sample_indices(indices, H, W)
+        indices = self.normalize_indices(indices, H, W).flip(3)
         return indices
 
     def forward(self, feature_map, keypoint_xyz):

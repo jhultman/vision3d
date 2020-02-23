@@ -48,9 +48,6 @@ def compute_grid_shape(cfg):
 class VoxelFeatureExtractor(nn.Module):
     """Computes mean of non-zero points within voxel."""
 
-    def __init__(self):
-        super(VoxelFeatureExtractor, self).__init__()
-
     def forward(self, feature, occupancy):
         """
         :feature FloatTensor of shape (N, K, C)

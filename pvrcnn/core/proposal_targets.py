@@ -60,8 +60,7 @@ class ProposalTargetAssigner(nn.Module):
     def get_cls_targets(self, match_labels):
         self.resample_pos_neg(match_labels)
         loss_mask = self.handle_assignment_conflicts(match_labels)
-        onehot = torch.cat((match_labels, loss_mask.long())).float()
-        return onehot
+        return match_labels.float(), loss_mask.float()
 
     def get_reg_targets(self, boxes, matches, match_labels):
         """
@@ -79,7 +78,8 @@ class ProposalTargetAssigner(nn.Module):
         )
         targets = torch.zeros_like(self.anchors)
         targets[match_labels == 1] = values
-        return targets
+        mask_reg = match_labels[:, :-1, ..., None].sum(1, keepdim=True)
+        return targets, mask_reg
 
     def get_matches(self, boxes, class_idx):
         """Match boxes to anchors based on IOU."""
@@ -100,5 +100,6 @@ class ProposalTargetAssigner(nn.Module):
     def forward(self, item):
         boxes, class_idx = item['boxes'], item['class_idx']
         matches, match_labels = self.get_matches(boxes, class_idx)
-        item['proposal_targets_cls'] = self.get_cls_targets(match_labels)
-        item['proposal_targets_reg'] = self.get_reg_targets(boxes, matches, match_labels)
+        G_cls, M_cls = self.get_cls_targets(match_labels)
+        G_reg, M_reg = self.get_reg_targets(boxes, matches, G_cls)
+        item.update(dict(G_cls=G_cls, G_reg=G_reg, M_cls=M_cls, M_reg=M_reg))

@@ -28,7 +28,8 @@ class PV_RCNN(nn.Module):
         self.roi_grid_pool = RoiGridPool(cfg)
         self.vfe = VoxelFeatureExtractor()
         self.cnn = CNN_FACTORY[cfg.CNN](cfg)
-        self.bev_gatherer = self.build_bev_gatherer(cfg)
+        self.bev = BEVFeatureGatherer(
+            cfg, self.cnn.voxel_offset, self.cnn.base_voxel_size)
         self.proposal_layer = ProposalLayer(cfg)
         self.refinement_layer = RefinementLayer(cfg)
         self.cfg = cfg
@@ -43,11 +44,6 @@ class PV_RCNN(nn.Module):
                 mlps=deepcopy(mlps), use_xyz=True,
             )]
         return nn.Sequential(*pnets)
-
-    def build_bev_gatherer(self, cfg):
-        bev = BEVFeatureGatherer(
-            cfg, self.cnn.voxel_offset, self.cnn.base_voxel_size)
-        return bev
 
     def sample_keypoints(self, points):
         """
@@ -93,8 +89,8 @@ class PV_RCNN(nn.Module):
         features = self.vfe(item['features'], item['occupancy'])
         cnn_features, bev_map = self.cnn(features, item['coordinates'], item['batch_size'])
         proposal_scores, proposal_boxes = self.proposal_layer(bev_map)
+        item.update(dict(P_cls=proposal_scores, P_reg=proposal_boxes))
         if proposals_only:
-            item.update(dict(proposal_scores=proposal_scores, proposal_boxes=proposal_boxes))
             return item
         point_features = self.point_feature_extract(item, cnn_features, bev_map)
         pooled_features = self.roi_grid_pool(proposals, item['keypoints'], point_features)

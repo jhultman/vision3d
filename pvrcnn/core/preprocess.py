@@ -72,7 +72,7 @@ class TrainPreprocessor(Preprocessor):
 
     def __init__(self, cfg):
         super(TrainPreprocessor, self).__init__(cfg)
-        self.cuda_keys = ['proposal_targets_cls', 'proposal_targets_reg']
+        self.cuda_keys = ['G_cls', 'G_reg', 'M_cls', 'M_reg']
 
     def collate_mapping(self, key, val):
         if key in self.cuda_keys:
