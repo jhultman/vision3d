@@ -3,14 +3,12 @@ import numpy as np
 import torch
 from torch import nn
 
-from typing import List
-
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
 from .bev import BEVFeatureGatherer
 from .roi_grid_pool import RoiGridPool
-from .backbone import CNN_FACTORY, VoxelFeatureExtractor
+from .sparse_cnn import CNN_FACTORY, VoxelFeatureExtractor
 from .proposal import ProposalLayer
 from .refinement import RefinementLayer
 
@@ -82,9 +80,6 @@ class PV_RCNN(nn.Module):
         return point_features
 
     def forward(self, item, proposals_only=False):
-        """
-        TODO: Document intermediate tensor shapes.
-        """
         item['keypoints'] = self.sample_keypoints(item['points'])
         features = self.vfe(item['features'], item['occupancy'])
         cnn_features, bev_map = self.cnn(features, item['coordinates'], item['batch_size'])

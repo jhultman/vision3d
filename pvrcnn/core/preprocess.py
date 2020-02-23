@@ -15,7 +15,6 @@ class Preprocessor(nn.Module):
         self.cfg = cfg
 
     def build_voxel_generator(self, cfg):
-        """Voxel-grid is reversed XYZ -> ZYX and padded in Z-axis."""
         voxel_generator = spconv.utils.VoxelGenerator(
             voxel_size=cfg.VOXEL_SIZE,
             point_cloud_range=cfg.GRID_BOUNDS,
@@ -25,7 +24,7 @@ class Preprocessor(nn.Module):
         return voxel_generator
 
     def generate_batch_voxels(self, points):
-        """Voxelize points and tag with batch index."""
+        """Voxelize points and prefix coordinates with batch index."""
         features, coordinates, occupancy = [], [], []
         for i, p in enumerate(points):
             f, c, o = self.voxel_generator.generate(p)
@@ -47,10 +46,6 @@ class Preprocessor(nn.Module):
         points = np.stack(points_batch, axis=0)
         return points
 
-    def from_numpy(self, x):
-        """Make tensor."""
-        return torch.from_numpy(x)
-
     def forward(self, item):
         """
         Compute sparse voxel grid.
@@ -61,10 +56,9 @@ class Preprocessor(nn.Module):
         """
         features, coordinates, occupancy = self.generate_batch_voxels(item['points'])
         points = self.pad_for_batch(item['points'])
-        keys = ['points', 'features', 'coordinates', 'occupancy']
-        vals = map(self.from_numpy, (points, features, coordinates, occupancy))
-        item.update(dict(zip(keys, vals)))
-        item['batch_size'] = len(points)
+        keys = ['points', 'features', 'coordinates', 'occupancy', 'batch_size']
+        vals = map(torch.from_numpy, (points, features, coordinates, occupancy))
+        item.update(dict(zip(keys, list(vals) + [len(points)])))
         return item
 
 

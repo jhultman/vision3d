@@ -40,7 +40,7 @@ class AnchorGenerator(nn.Module):
 
     def compute_grid_params(self):
         pixel_size = torch.tensor(self.cfg.VOXEL_SIZE[:2]) * self.cfg.STRIDES[-1]
-        lower, upper = torch.tensor(self.cfg.GRID_BOUNDS).reshape(2, 3)[:, :2]
+        lower, upper = torch.tensor(self.cfg.GRID_BOUNDS).view(2, 3)[:, :2]
         grid_shape = ((upper - lower) / pixel_size).long()
         return lower, upper, grid_shape
 

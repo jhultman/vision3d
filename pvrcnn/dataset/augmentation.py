@@ -149,7 +149,7 @@ class SampleAugmentation(Augmentation):
     def random_translate(self, samples):
         """Apply random translation to sampled boxes."""
         boxes = samples['boxes']
-        lower, upper = np.r_[self.cfg.GRID_BOUNDS].reshape(3, 2)[:2].T
+        lower, upper = np.r_[self.cfg.GRID_BOUNDS].reshape(2, 3)[:, :2]
         position = np.random.rand(len(boxes), 2) * (upper - lower) + lower
         samples['boxes'] = boxes + np.pad(position, ((0, 0), (0, 5)))
         samples['points'] = self._translate_points(samples['points'], position)
