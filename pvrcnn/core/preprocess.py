@@ -48,8 +48,8 @@ class Preprocessor(nn.Module):
         return points
 
     def from_numpy(self, x):
-        """Make cuda tensor."""
-        return torch.from_numpy(x).cuda()
+        """Make tensor."""
+        return torch.from_numpy(x)
 
     def forward(self, item):
         """
@@ -70,25 +70,16 @@ class Preprocessor(nn.Module):
 
 class TrainPreprocessor(Preprocessor):
 
-    def __init__(self, cfg):
-        super(TrainPreprocessor, self).__init__(cfg)
-        self.cuda_keys = ['G_cls', 'G_reg', 'M_cls', 'M_reg']
-
     def collate_mapping(self, key, val):
-        if key in self.cuda_keys:
+        if key in ['G_cls', 'G_reg', 'M_cls', 'M_reg']:
             return torch.stack(val)
-        return val
-
-    def device_mapping(self, key, val):
-        if key in self.cuda_keys:
-            return val.cuda()
         return val
 
     def collate(self, items):
         batch_item = defaultdict(list)
         for item in items:
             for key, val in item.items():
-                batch_item[key] += [self.device_mapping(key, val)]
+                batch_item[key] += [val]
         for key, val in batch_item.items():
             batch_item[key] = self.collate_mapping(key, val)
         return self(dict(batch_item))

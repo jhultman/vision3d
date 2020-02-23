@@ -133,7 +133,7 @@ class SampleAugmentation(Augmentation):
         boxes = torch.cat((
             torch.from_numpy(boxes),
             torch.from_numpy(sample_boxes),
-        )).float().cuda()[:, [0, 1, 3, 4, 6]]
+        )).cuda().float()[:, [0, 1, 3, 4, 6]]
         iou = box_iou_rotated(boxes, boxes).cpu().numpy()
         mask = (iou > 1e-2).sum(1)[N:] == 1
         return mask

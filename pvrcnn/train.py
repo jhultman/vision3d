@@ -48,10 +48,18 @@ def update_plot(losses, prefix):
         plotter.update(f'{prefix}_{key}', losses[key].item())
 
 
+def to_device(item):
+    keys = ['G_cls', 'G_reg', 'M_cls', 'M_reg', 'points',
+        'features', 'coordinates', 'occupancy']
+    for key in keys:
+        item[key] = item[key].cuda()
+
+
 def train_model(model, dataloader, optimizer, loss_fn, epochs, start_epoch=0):
     model.train()
     for epoch in range(start_epoch, epochs):
         for step, item in enumerate(tqdm(dataloader)):
+            to_device(item)
             optimizer.zero_grad()
             out = model(item, proposals_only=True)
             losses = loss_fn(out)
