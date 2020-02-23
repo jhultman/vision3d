@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from torch import nn
 import torch.nn.functional as F
 
@@ -66,7 +67,7 @@ class ProposalLoss(nn.Module):
         G_xyz, G_wlh, G_yaw = G_reg.split([3, 3, 1], dim=-1)
         loss_xyz = F.smooth_l1_loss(P_xyz, G_xyz, reduction='none')
         loss_wlh = F.smooth_l1_loss(P_wlh, G_wlh, reduction='none')
-        loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none')
+        loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none') / np.pi
         loss = self.masked_average(loss_xyz + loss_wlh + loss_yaw, M_reg)
         return loss
 

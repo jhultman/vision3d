@@ -55,7 +55,7 @@ def to_device(item):
         item[key] = item[key].cuda()
 
 
-def train_model(model, dataloader, optimizer, loss_fn, epochs, start_epoch=0):
+def train_model(model, dataloader, optimizer, lr_scheduler, loss_fn, epochs, start_epoch=0):
     model.train()
     for epoch in range(start_epoch, epochs):
         for step, item in enumerate(tqdm(dataloader, desc=f'Epoch {epoch}')):
@@ -65,6 +65,7 @@ def train_model(model, dataloader, optimizer, loss_fn, epochs, start_epoch=0):
             losses = loss_fn(out)
             losses['loss'].backward()
             optimizer.step()
+            lr_scheduler.step()
             if (step % 50) == 0:
                 update_plot(losses, 'step')
         save_cpkt(model, optimizer, epoch)
@@ -79,14 +80,17 @@ def get_proposal_parameters(model):
 
 
 def main():
+    """TODO: Trainer class to manage objects."""
     model = PV_RCNN(cfg).cuda()
     loss_fn = ProposalLoss(cfg)
     preprocessor = TrainPreprocessor(cfg)
-    dataloader_train = build_train_dataloader(cfg, preprocessor)
+    dataloader = build_train_dataloader(cfg, preprocessor)
     parameters = get_proposal_parameters(model)
-    optimizer = torch.optim.Adam(parameters, lr=cfg.TRAIN.LR)
-    start_epoch = load_ckpt('./ckpts/epoch_0.pth', model, optimizer)
-    train_model(model, dataloader_train, optimizer, loss_fn, cfg.TRAIN.EPOCHS, start_epoch)
+    optimizer = torch.optim.Adam(parameters, lr=cfg.TRAIN.LR, weight_decay=1e-3)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer, max_lr=3e-3, steps_per_epoch=len(dataloader), epochs=cfg.TRAIN.EPOCHS)
+    start_epoch = load_ckpt('./ckpts/epoch_31.pth', model, optimizer)
+    train_model(model, dataloader, optimizer, scheduler, loss_fn, cfg.TRAIN.EPOCHS, start_epoch)
 
 
 if __name__ == '__main__':

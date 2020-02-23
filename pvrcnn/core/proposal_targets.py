@@ -23,24 +23,12 @@ class ProposalTargetAssigner(nn.Module):
                 [0, -1, +1], cfg.ALLOW_LOW_QUALITY_MATCHES)]
         return matchers
 
-    def compute_iou_matrix(self, boxes, anchors):
+    def compute_iou(self, boxes, anchors):
         matrix = box_iou_rotated(
             boxes[:, [0, 1, 3, 4, 6]],
             anchors[:, [0, 1, 3, 4, 6]],
         )
         return matrix
-
-    def resample_pos_neg(self, match_labels):
-        """Tries to sample positives and negatives 50/50."""
-        if self.cfg.NUM_PROPOSAL_SAMPLE < 0:
-            return
-        match_labels = match_labels.view(-1)
-        pos_idx, neg_idx = subsample_labels(
-            match_labels, self.cfg.NUM_PROPOSAL_SAMPLE, 0.5, 0
-        )
-        match_labels.fill_(-1)
-        match_labels.scatter_(0, pos_idx, 1)
-        match_labels.scatter_(0, neg_idx, 0)
 
     def handle_assignment_conflicts(self, match_labels):
         """
@@ -57,28 +45,30 @@ class ProposalTargetAssigner(nn.Module):
         match_labels[match_labels.eq(-1)] = 0
         return loss_mask
 
-    def get_cls_targets(self, match_labels):
-        self.resample_pos_neg(match_labels)
-        loss_mask = self.handle_assignment_conflicts(match_labels)
-        return match_labels.float(), loss_mask.float()
+    def _encode_diagonal(self, A_wlh):
+        A_wl, A_h = A_wlh.split([2, 1], -1)
+        A_norm = A_wl.norm(dim=-1, keepdim=True).expand(-1, 2)
+        A_norm = torch.cat((A_norm, A_h), -1)
+        return A_norm
 
-    def get_reg_targets(self, boxes, matches, match_labels):
+    def get_reg_targets(self, boxes, box_idx, match_labels):
         """
         Standard VoxelNet-style box encoding.
         TODO: Angle binning, angle periodicity.
         """
         A = self.anchors[match_labels == 1]
-        G = boxes[matches[match_labels == 1]].cuda()
+        G = boxes[box_idx[match_labels == 1]].cuda()
         G_xyz, G_wlh, G_yaw = G.split([3, 3, 1], -1)
         A_xyz, A_wlh, A_yaw = A.split([3, 3, 1], -1)
+        A_norm = self._encode_diagonal(A_wlh)
         values = torch.cat((
-            (G_xyz - A_xyz),
-            (G_wlh - A_wlh) / A_wlh,
+            (G_xyz - A_xyz) / A_norm,
+            (G_wlh / A_wlh).log(),
             (G_yaw - A_yaw)), dim=-1
         )
         targets = torch.zeros_like(self.anchors)
         targets[match_labels == 1] = values
-        mask_reg = match_labels[:, :-1, ..., None].sum(1, keepdim=True)
+        mask_reg = match_labels[:, :-1, ..., None].sum(1, keepdim=True).float()
         return targets, mask_reg
 
     def get_matches(self, boxes, class_idx):
@@ -86,20 +76,18 @@ class ProposalTargetAssigner(nn.Module):
         n_cls, n_yaw, ny, nx, _ = self.anchors.shape
         all_matches = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
         all_match_labels = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
+        box_idx_mapper = torch.arange(boxes.shape[0]) # maps masked box_idx to original
         for i in range(self.cfg.NUM_CLASSES):
-            class_mask = class_idx == i
-            if not (class_mask).any():
-                continue
             anchors_i = self.anchors[i].view(-1, self.cfg.BOX_DOF)
-            iou_matrix = self.compute_iou_matrix(boxes[class_mask].cuda(), anchors_i)
-            matches, match_labels = self.matchers[i](iou_matrix)
-            all_matches[i].view(-1)[:] = matches
+            iou = self.compute_iou(boxes[class_idx == i].cuda(), anchors_i)
+            matches, match_labels = self.matchers[i](iou)
+            all_matches[i].view(-1)[:] = box_idx_mapper[class_idx == i][matches]
             all_match_labels[i].view(-1)[:] = match_labels
         return all_matches, all_match_labels
 
     def forward(self, item):
         boxes, class_idx = item['boxes'], item['class_idx']
-        matches, match_labels = self.get_matches(boxes, class_idx)
-        G_cls, M_cls = self.get_cls_targets(match_labels)
-        G_reg, M_reg = self.get_reg_targets(boxes, matches, G_cls)
-        item.update(dict(G_cls=G_cls, G_reg=G_reg, M_cls=M_cls, M_reg=M_reg))
+        box_idx, G_cls = self.get_matches(boxes, class_idx)
+        M_cls = self.handle_assignment_conflicts(G_cls).float()
+        G_reg, M_reg = self.get_reg_targets(boxes, box_idx, G_cls)
+        item.update(dict(G_cls=G_cls.float(), G_reg=G_reg, M_cls=M_cls, M_reg=M_reg))
