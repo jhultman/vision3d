@@ -78,12 +78,14 @@ class ProposalTargetAssigner(nn.Module):
         n_cls, n_yaw, ny, nx, _ = self.anchors.shape
         all_matches = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
         all_match_labels = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
-        box_idx_mapper = torch.arange(boxes.shape[0])
+        full_idx = torch.arange(boxes.shape[0])
+        if boxes.shape[0] == 0:
+            return all_matches, all_match_labels
         for i in range(n_cls):
             anchors_i = self.anchors[i].view(-1, self.cfg.BOX_DOF)
             iou = self.compute_iou(boxes[class_idx == i].cuda(), anchors_i)
             matches, match_labels = self.matchers[i](iou)
-            all_matches[i].view(-1)[:] = box_idx_mapper[class_idx == i][matches]
+            all_matches[i].view(-1)[:] = full_idx[class_idx == i][matches]
             all_match_labels[i].view(-1)[:] = match_labels
         return all_matches, all_match_labels
 
