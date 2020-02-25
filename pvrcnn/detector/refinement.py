@@ -32,6 +32,6 @@ class RefinementLayer(nn.Module):
     def forward(self, points, features, proposal_boxes):
         features = features.permute(0, 2, 1)
         refinements = self.mlp(features)
-        box_deltas, scores = self.reorganize_predictions(predictions)
+        box_deltas, scores = self.reorganize_predictions(refinements)
         boxes = self.apply_refinements(box_deltas, proposal_boxes)
         return boxes, scores
