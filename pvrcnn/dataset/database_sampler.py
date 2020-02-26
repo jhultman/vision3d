@@ -81,6 +81,12 @@ class PointsInCuboids:
 
 class PointsNotInCuboids(PointsInCuboids):
 
+    def _get_mask(self, boxes):
+        polygons = center_to_corner_box2d(boxes)
+        mask = points_in_convex_polygon(
+            self.points[:, :2], polygons)
+        return mask
+
     def __call__(self, boxes):
         """Return array of points not in any box."""
         mask = ~self._get_mask(boxes).any(1)
