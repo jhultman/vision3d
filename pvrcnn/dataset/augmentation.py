@@ -43,6 +43,7 @@ class ChainedAugmentation(Augmentation):
 class RotateAugmentation(Augmentation):
 
     def rotate(self, theta, xy):
+        """Right-multiplies by transpose for convenience."""
         c, s = np.cos(theta), np.sin(theta)
         points = xy @ np.r_[c, s, -s, c].reshape(2, 2)
         return points
@@ -106,6 +107,9 @@ class ScaleAugmentation(Augmentation):
 
 
 class SampleAugmentation(Augmentation):
+    """
+    TODO: Add docstrings.
+    """
 
     def __init__(self, cfg):
         super(SampleAugmentation, self).__init__(cfg)

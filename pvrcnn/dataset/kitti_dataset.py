@@ -14,9 +14,10 @@ from .database_sampler import DatabaseBuilder
 
 class KittiDataset(Dataset):
     """
-    TODO: This class should certainly not need
-    access to anchors. Find better place to
-    instantiate target assigner.
+    TODO: This class should certainly not need access to
+        anchors. Find better place to instantiate target assigner.
+    TODO: This class has inconsistent return types in train/val modes.
+        Should always return numpy or torch arrays (preferably torch).
     """
 
     def __init__(self, cfg, split):

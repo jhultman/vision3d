@@ -1,3 +1,4 @@
+import os.path as osp
 import numpy as np
 import torch
 
@@ -5,20 +6,23 @@ from pvrcnn.core import cfg, Preprocessor
 from pvrcnn.detector import PV_RCNN
 
 
-def make_points(n, cfg):
-    lower, upper = np.split(cfg.GRID_BOUNDS, [3])
-    points = np.random.rand(n, 3) * (upper - lower) + lower
-    points = np.pad(points, ((0, 0), (0, 1))).astype(np.float32)
-    return points
+def to_device(item):
+    for key in ['points', 'features', 'coordinates', 'occupancy']:
+        item[key] = item[key].cuda()
+    return item
 
 
 def main():
     preprocessor = Preprocessor(cfg)
     net = PV_RCNN(cfg).cuda().eval()
-    item = dict(points=[make_points(36000, cfg), make_points(36000, cfg)])
+    basedir = osp.join(cfg.DATA.ROOTDIR, 'velodyne_reduced/')
+    item = dict(points=[
+        np.fromfile(basedir + '000007.bin', np.float32).reshape(-1, 4)
+        np.fromfile(basedir + '000008.bin', np.float32).reshape(-1, 4)
+    ])
     with torch.no_grad():
-        item = preprocessor(item)
-        out = net(item, proposals_only=True)
+        item = to_device(preprocessor(item))
+        out = net(item, proposals_only=False)
 
 
 if __name__ == '__main__':

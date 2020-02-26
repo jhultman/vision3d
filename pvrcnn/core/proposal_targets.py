@@ -9,6 +9,9 @@ class ProposalTargetAssigner(nn.Module):
     Match ground truth boxes to anchors by IOU.
     TODO: Simplify target_cls assignment.
     TODO: Make this run faster.
+    TODO: Use F.one_hot to minimize chance of bugs.
+    TODO: Include background class in targets (NUM_CLASSES + 1).
+    TODO: Use Faster R-CNN style vectorized anchors to simplify indexing.
     """
 
     def __init__(self, cfg, anchors):
@@ -36,6 +39,7 @@ class ProposalTargetAssigner(nn.Module):
         1. Disable ambiguous (matched to multiple classes).
         2. Clobber ignore with negative.
         3. Replace ignore -1 marker with binary mask.
+
         TODO: This code is hard to understand.
         """
         ambiguous = match_labels.eq(1).int().sum(0) > 1
@@ -56,7 +60,7 @@ class ProposalTargetAssigner(nn.Module):
     def get_reg_targets(self, boxes, box_idx, G_cls):
         """
         Standard VoxelNet-style box encoding.
-        TODO: Angle binning, angle periodicity.
+        TODO: Angle binning, angle modulo.
         """
         A = self.anchors[G_cls == 1]
         G = boxes[box_idx[G_cls == 1]].cuda()

@@ -4,6 +4,10 @@ from functools import partial
 
 
 class MLP(nn.Sequential):
+    """
+    TODO: Does this class really need to live in its
+        own file? Codebase is very fragmented.
+    """
 
     def __init__(self, channels, bias=False, bn=False, relu=True):
         super(MLP, self).__init__()

@@ -55,6 +55,11 @@ class ProposalLoss(nn.Module):
         super(ProposalLoss, self).__init__()
         self.cfg = cfg
 
+    def masked_average(self, loss, mask):
+        mask = mask.type_as(loss)
+        loss = (loss * mask).sum() / mask.sum()
+        return loss
+
     def reg_loss(self, P_reg, G_reg, M_reg):
         """Loss applied at all positive sites."""
         P_xyz, P_wlh, P_yaw = P_reg.split([3, 3, 1], dim=-1)
@@ -62,22 +67,21 @@ class ProposalLoss(nn.Module):
         loss_xyz = F.smooth_l1_loss(P_xyz, G_xyz, reduction='none')
         loss_wlh = F.smooth_l1_loss(P_wlh, G_wlh, reduction='none')
         loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none') / np.pi
-        loss = ((loss_xyz + loss_wlh + loss_yaw) * M_reg.type_as(loss_xyz)).sum()
+        loss = self.masked_average(loss_xyz + loss_wlh + loss_yaw, M_reg)
         return loss
 
     def cls_loss(self, P_cls, G_cls, M_cls):
         """Loss is applied at all non-ignore sites. Assumes logit scores."""
         loss = sigmoid_focal_loss(P_cls, G_cls, reduction='none')
-        loss = (loss * M_cls.type_as(loss)).sum()
+        loss = self.masked_average(loss, M_cls)
         return loss
 
     def forward(self, item):
         """TODO: Decide on cleaner input representation."""
         keys = ['G_cls', 'M_cls', 'P_cls', 'G_reg', 'M_reg', 'P_reg']
         G_cls, M_cls, P_cls, G_reg, M_reg, P_reg = map(item.get, keys)
-        num_foreground = M_reg.sum()
-        cls_loss = self.cls_loss(P_cls, G_cls, M_cls) / num_foreground
-        reg_loss = self.reg_loss(P_reg, G_reg, M_reg) / num_foreground
+        cls_loss = self.cls_loss(P_cls, G_cls, M_cls)
+        reg_loss = self.reg_loss(P_reg, G_reg, M_reg)
         loss = cls_loss + self.cfg.TRAIN.LAMBDA * reg_loss
         losses = dict(cls_loss=cls_loss, reg_loss=reg_loss, loss=loss)
         return losses

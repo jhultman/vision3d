@@ -8,6 +8,13 @@ from .mlp import MLP
 
 
 class RoiGridPool(nn.Module):
+    """
+    TODO: I think must be misunderstanding dimensions claimed in paper.
+        If sample 216 gridpoints in each proposal, and keypoint features
+        are of dim 256, and gridpoint features are vectorized before Linear Layer,
+        causes 216 * 256 * 256 parameters in reduction...
+    TODO: Document input and output sizes.
+    """
 
     def __init__(self, cfg):
         super(RoiGridPool, self).__init__()
@@ -46,6 +53,10 @@ class RoiGridPool(nn.Module):
 
     def sample_gridpoints(self, proposals):
         """
+        TODO: Uniform random number should be in
+        [-0.5, 0.5] to place sample in box. Currently
+        it is [0, 1].
+
         Generate gridpoints within axis-aligned
         object proposals then rotate about z-axis.
         :return FloatTensor of shape (nb, ng, 3)

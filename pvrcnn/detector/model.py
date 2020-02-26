@@ -15,9 +15,11 @@ from .refinement import RefinementLayer
 
 class PV_RCNN(nn.Module):
     """
-    For each feature volume stride, convert keypoint locations to
-    continuous voxel index coordinates. Then fetch voxels within ball query.
-    Raw input points are treated as an additional stride-1 voxel stage.
+    TODO: Improve docstrings.
+    TODO: Some docstrings may claim incorrect dimensions.
+    TODO: Figure out clean way to handle proposals_only forward.
+    TODO: Only sparse CNN currently uses explicit weight initialization.
+        Figure out how to initialize regression heads, etc.
     """
 
     def __init__(self, cfg):
@@ -75,7 +77,7 @@ class PV_RCNN(nn.Module):
         points_split = torch.split(item['points'], [3, 1], dim=-1)
         cnn_features = [points_split] + cnn_features
         point_features = self.pointnets(cnn_features, item['keypoints'])
-        bev_features = self.bev_gatherer(bev_map, item['keypoints'])
+        bev_features = self.bev(bev_map, item['keypoints'])
         point_features = torch.cat(point_features + [bev_features], dim=1)
         return point_features
 
@@ -83,11 +85,12 @@ class PV_RCNN(nn.Module):
         item['keypoints'] = self.sample_keypoints(item['points'])
         features = self.vfe(item['features'], item['occupancy'])
         cnn_features, bev_map = self.cnn(features, item['coordinates'], item['batch_size'])
-        proposal_scores, proposal_boxes = self.proposal_layer(bev_map)
-        item.update(dict(P_cls=proposal_scores, P_reg=proposal_boxes))
         if proposals_only:
+            proposal_scores, proposal_boxes = self.proposal_layer(bev_map)
+            item.update(dict(P_cls=proposal_scores, P_reg=proposal_boxes))
             return item
+        proposal_scores, proposal_boxes = self.proposal_layer.inference(bev_map)
         point_features = self.point_feature_extract(item, cnn_features, bev_map)
-        pooled_features = self.roi_grid_pool(proposals, item['keypoints'], point_features)
+        pooled_features = self.roi_grid_pool(proposal_boxes, item['keypoints'], point_features)
         predictions, scores_detections = self.refinement_layer(proposals, pooled_features)
         return predictions

@@ -48,11 +48,11 @@ class Preprocessor(nn.Module):
 
     def forward(self, item):
         """
-        Compute sparse voxel grid.
-        :points_in list of np.ndarrays of shape (Np, 4)
-        :points_out FloatTensor of shape (Np, 4)
-        :features FloatTensor of shape (Nv, 1)
-        :coordinates IntTensor of shape (Nv, 4)
+        Compute batch input from points.
+        :points_in length-B list of np.ndarrays of shape (Np, 4)
+        :points_out FloatTensor of shape (B, Np, 4)
+        :features FloatTensor of shape (B, Nv, 1)
+        :coordinates IntTensor of shape (B, Nv, 4)
         """
         features, coordinates, occupancy = self.generate_batch_voxels(item['points'])
         points = self.pad_for_batch(item['points'])
@@ -70,6 +70,7 @@ class TrainPreprocessor(Preprocessor):
         return val
 
     def collate(self, items):
+        """Form batch item from list of items."""
         batch_item = defaultdict(list)
         for item in items:
             for key, val in item.items():

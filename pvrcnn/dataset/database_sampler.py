@@ -8,6 +8,29 @@ from collections import defaultdict
 from .kitti_utils import read_velo
 
 
+def points_in_convex_polygon(points, polygon, ccw=True):
+    """points (N, 2) | polygon (M, V, 2) | mask (N, M)"""
+    polygon_roll = np.roll(polygon, shift=1, axis=1)
+    polygon_side = (-1) ** ccw * (polygon - polygon_roll)[None]
+    vertex_to_point = polygon[None] - points[:, None, None]
+    mask = (np.cross(polygon_side, vertex_to_point) > 0).all(2)
+    return mask
+
+
+def center_to_corner_box2d(boxes):
+    """
+    Corners returned counter-clockwise.
+    TODO: Document input dimensions.
+    """
+    xy, _, wl, _, yaw = np.split(boxes, [2, 3, 5, 6], 1)
+    c, s = np.cos(yaw), np.sin(yaw)
+    R = np.stack([c, -s, s, c], -1).reshape(-1, 2, 2)
+    corners = 0.5 * np.r_[-1, -1, +1, -1, +1, +1, -1, +1]
+    corners = (wl[:, None] * corners.reshape(4, 2))
+    corners = np.einsum('ijk,imk->imj', R, corners) + xy[:, None]
+    return corners
+
+
 class DatabaseBuilder:
 
     def __init__(self, cfg, annotations):
@@ -80,6 +103,9 @@ class PointsInCuboids:
 
 
 class PointsNotInCuboids(PointsInCuboids):
+    """
+    TODO: This shares no methods with PointsInCuboids.
+    """
 
     def _get_mask(self, boxes):
         polygons = center_to_corner_box2d(boxes)
@@ -91,23 +117,3 @@ class PointsNotInCuboids(PointsInCuboids):
         """Return array of points not in any box."""
         mask = ~self._get_mask(boxes).any(1)
         return self.points[mask]
-
-
-def points_in_convex_polygon(points, polygon, ccw=True):
-    """points (N, 2) | polygon (M, V, 2) | mask (N, M)"""
-    polygon_roll = np.roll(polygon, shift=1, axis=1)
-    polygon_side = (-1) ** ccw * (polygon - polygon_roll)[None]
-    vertex_to_point = polygon[None] - points[:, None, None]
-    mask = (np.cross(polygon_side, vertex_to_point) > 0).all(2)
-    return mask
-
-
-def center_to_corner_box2d(boxes):
-    """Corners returned counter-clockwise."""
-    xy, _, wl, _, yaw = np.split(boxes, [2, 3, 5, 6], 1)
-    c, s = np.cos(yaw), np.sin(yaw)
-    R = np.stack([c, -s, s, c], -1).reshape(-1, 2, 2)
-    corners = 0.5 * np.r_[-1, -1, +1, -1, +1, +1, -1, +1]
-    corners = (wl[:, None] * corners.reshape(4, 2))
-    corners = np.einsum('ijk,imk->imj', R, corners) + xy[:, None]
-    return corners

@@ -4,6 +4,10 @@ from torch.nn import functional as F
 
 
 class BEVFeatureGatherer(nn.Module):
+    """
+    TODO: Does this class really need to live in its
+        own file? Codebase is very fragmented.
+    """
 
     def __init__(self, cfg, voxel_offset, base_voxel_size):
         super(BEVFeatureGatherer, self).__init__()

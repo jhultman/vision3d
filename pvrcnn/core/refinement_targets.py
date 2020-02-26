@@ -5,6 +5,7 @@ from torch import nn
 class RefinementTargetAssigner(nn.Module):
     """
     TODO: Remove batch support to simplify implementation.
+    TODO: Complete rewrite.
     """
 
     def __init__(self, cfg):

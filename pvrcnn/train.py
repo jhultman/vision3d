@@ -65,8 +65,7 @@ def train_model(model, dataloader, optimizer, lr_scheduler, loss_fn, epochs, sta
             losses = loss_fn(out)
             losses['loss'].backward()
             optimizer.step()
-            if False:
-                lr_scheduler.step()
+            lr_scheduler.step()
             if (step % 50) == 0:
                 update_plot(losses, 'step')
         save_cpkt(model, optimizer, epoch)
