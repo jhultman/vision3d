@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from pvrcnn.ops import box_iou_rotated, subsample_labels, Matcher
+from pvrcnn.ops import box_iou_rotated, Matcher
 
 
 class ProposalTargetAssigner(nn.Module):
@@ -40,7 +40,7 @@ class ProposalTargetAssigner(nn.Module):
         """
         ambiguous = match_labels.eq(1).int().sum(0) > 1
         match_labels[:, ambiguous] = -1
-        negative = match_labels.eq(0).any(0) > 0
+        negative = match_labels.eq(0).any(0)
         positive = match_labels.eq(1).int().sum(0) == 1
         match_labels[:, negative & ~positive] = 0
         loss_mask = ~match_labels.eq(-1).all(0, keepdim=True)
@@ -75,19 +75,19 @@ class ProposalTargetAssigner(nn.Module):
 
     def get_matches(self, boxes, class_idx):
         """Match boxes to anchors based on IOU."""
-        n_cls, n_yaw, ny, nx, _ = self.anchors.shape
-        all_matches = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
-        all_match_labels = torch.full((n_cls, n_yaw, ny, nx), -1, dtype=torch.long)
         full_idx = torch.arange(boxes.shape[0])
-        if boxes.shape[0] == 0:
-            return all_matches, all_match_labels
-        for i in range(n_cls):
+        matches, match_labels = [], []
+        for i in range(self.cfg.NUM_CLASSES):
+            if not (class_idx == i).any():
+                continue
             anchors_i = self.anchors[i].view(-1, self.cfg.BOX_DOF)
             iou = self.compute_iou(boxes[class_idx == i].cuda(), anchors_i)
-            matches, match_labels = self.matchers[i](iou)
-            all_matches[i].view(-1)[:] = full_idx[class_idx == i][matches]
-            all_match_labels[i].view(-1)[:] = match_labels
-        return all_matches, all_match_labels
+            _matches, _match_labels = self.matchers[i](iou)
+            matches += [full_idx[class_idx == i][_matches]]
+            match_labels += [_match_labels]
+        matches = torch.stack(matches).view(self.anchors.shape[:-1])
+        match_labels = torch.stack(match_labels).view(self.anchors.shape[:-1])
+        return matches, match_labels
 
     def forward(self, item):
         boxes, class_idx = item['boxes'], item['class_idx']

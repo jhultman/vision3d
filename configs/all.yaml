@@ -1,1 +1,4 @@
 CNN: 'SpMiddleFHD'
+TRAIN:
+  BATCH_SIZE: 6
+  LAMBDA: 0.1

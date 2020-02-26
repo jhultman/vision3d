@@ -16,7 +16,9 @@ class ProposalLayer(nn.Module):
             cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW, 1)
         self.conv_reg = nn.Conv2d(
             cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW * cfg.BOX_DOF, 1)
+        nn.init.constant_(self.conv_cls.bias, (-np.log(1 - .01) / .01))
 
+    @torch.no_grad()
     def inference(self, feature_map):
         """TODO: Sigmoid and topk proposal indexing."""
         cls_map, reg_map = self(feature_map)
@@ -53,39 +55,29 @@ class ProposalLoss(nn.Module):
         super(ProposalLoss, self).__init__()
         self.cfg = cfg
 
-    def masked_average(self, loss, mask):
-        mask = mask.type_as(loss)
-        loss = (loss * mask).sum() / mask.sum()
-        return loss
-
     def reg_loss(self, P_reg, G_reg, M_reg):
-        """
-        Loss is applied at all positive sites, averaged
-        over the number of such sites.
-        """
+        """Loss applied at all positive sites."""
         P_xyz, P_wlh, P_yaw = P_reg.split([3, 3, 1], dim=-1)
         G_xyz, G_wlh, G_yaw = G_reg.split([3, 3, 1], dim=-1)
         loss_xyz = F.smooth_l1_loss(P_xyz, G_xyz, reduction='none')
         loss_wlh = F.smooth_l1_loss(P_wlh, G_wlh, reduction='none')
         loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none') / np.pi
-        loss = self.masked_average(loss_xyz + loss_wlh + loss_yaw, M_reg)
+        loss = ((loss_xyz + loss_wlh + loss_yaw) * M_reg.type_as(loss_xyz)).sum()
         return loss
 
     def cls_loss(self, P_cls, G_cls, M_cls):
-        """
-        Loss is applied at all non-ignore sites, averaged
-        over the number of such sites. Assumes logit scores.
-        """
+        """Loss is applied at all non-ignore sites. Assumes logit scores."""
         loss = sigmoid_focal_loss(P_cls, G_cls, reduction='none')
-        loss = self.masked_average(loss, M_cls)
+        loss = (loss * M_cls.type_as(loss)).sum()
         return loss
 
     def forward(self, item):
         """TODO: Decide on cleaner input representation."""
         keys = ['G_cls', 'M_cls', 'P_cls', 'G_reg', 'M_reg', 'P_reg']
         G_cls, M_cls, P_cls, G_reg, M_reg, P_reg = map(item.get, keys)
-        cls_loss = self.cls_loss(P_cls, G_cls, M_cls)
-        reg_loss = self.reg_loss(P_reg, G_reg, M_reg)
+        num_foreground = M_reg.sum()
+        cls_loss = self.cls_loss(P_cls, G_cls, M_cls) / num_foreground
+        reg_loss = self.reg_loss(P_reg, G_reg, M_reg) / num_foreground
         loss = cls_loss + self.cfg.TRAIN.LAMBDA * reg_loss
         losses = dict(cls_loss=cls_loss, reg_loss=reg_loss, loss=loss)
         return losses
