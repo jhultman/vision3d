@@ -2,6 +2,7 @@ from tqdm import tqdm
 import pickle
 import numpy as np
 import torch
+import os
 from copy import deepcopy
 import os.path as osp
 from torch.utils.data import Dataset
@@ -13,24 +14,12 @@ from .database_sampler import DatabaseBuilder
 
 
 class KittiDataset(Dataset):
-    """
-    TODO: This class should certainly not need access to
-        anchors. Find better place to instantiate target assigner.
-    TODO: This class has inconsistent return types in train/val modes.
-        Should always return numpy or torch arrays (preferably torch).
-    """
 
-    def __init__(self, cfg, split):
+    def __init__(self, cfg, split='val'):
         super(KittiDataset, self).__init__()
-        self.split = split
-        self.rootdir = cfg.DATA.ROOTDIR
-        self.load_annotations(cfg)
-        if split == 'train':
-            DatabaseBuilder(cfg, self.annotations)
-            anchors = AnchorGenerator(cfg).anchors
-            self.target_assigner = ProposalTargetAssigner(cfg, anchors)
-            self.augmentation = ChainedAugmentation(cfg)
         self.cfg = cfg
+        self.split = split
+        self.load_annotations(cfg)
 
     def __len__(self):
         return len(self.inds)
@@ -39,44 +28,43 @@ class KittiDataset(Dataset):
         fpath = osp.join(cfg.DATA.SPLITDIR, f'{self.split}.txt')
         self.inds = np.loadtxt(fpath, dtype=np.int32).tolist()
 
-    def try_read_cached_annotations(self, cfg):
+    def read_cached_annotations(self, cfg):
         fpath = osp.join(cfg.DATA.CACHEDIR, f'{self.split}.pkl')
-        if not osp.isfile(fpath):
-            return False
-        print(f'Found cached annotations: {fpath}')
         with open(fpath, 'rb') as f:
             self.annotations = pickle.load(f)
-        return True
+        print(f'Found cached annotations: {fpath}')
 
     def cache_annotations(self, cfg):
         fpath = osp.join(cfg.DATA.CACHEDIR, f'{self.split}.pkl')
         with open(fpath, 'wb') as f:
             pickle.dump(self.annotations, f)
 
-    def create_annotation(self, idx, cfg):
-        velo_path = osp.join(cfg.DATA.ROOTDIR, 'velodyne_reduced', f'{idx:06d}.bin')
-        calib = read_calib(osp.join(cfg.DATA.ROOTDIR, 'calib', f'{idx:06d}.txt'))
-        objects = read_label(osp.join(cfg.DATA.ROOTDIR, 'label_2', f'{idx:06d}.txt'))
-        item = dict(velo_path=velo_path, calib=calib, objects=objects, idx=idx)
-        self.make_simple_objects(item)
-        return item
-
     def load_annotations(self, cfg):
         self.read_splitfile(cfg)
-        if self.try_read_cached_annotations(cfg):
-            return
+        try:
+            self.read_cached_annotations(cfg)
+        except FileNotFoundError:
+            os.makedirs(cfg.DATA.CACHEDIR, exist_ok=True)
+            self.create_annotations()
+            self.cache_annotations(cfg)
+
+    def _path_helper(self, folder, idx, suffix):
+        return osp.join(self.cfg.DATA.ROOTDIR, folder, f'{idx:06d}.{suffix}')
+
+    def create_annotations(self):
         self.annotations = dict()
         for idx in tqdm(self.inds, desc='Generating annotations'):
-            self.annotations[idx] = self.create_annotation(idx, cfg)
-        self.cache_annotations(cfg)
+            item = dict(
+                velo_path=self._path_helper('velodyne_reduced', idx, 'bin'),
+                calib=read_calib(self._path_helper('calib', idx, 'txt')),
+                objects=read_label(self._path_helper('label_2', idx, 'txt')), idx=idx,
+            )
+            self.annotations[idx] = self.make_simple_objects(item)
 
     def make_simple_object(self, obj, calib):
-        """Convert coordinates to velodyne frame."""
-        xyz = calib.R0 @ obj.t
-        xyz = calib.C2V @ np.r_[xyz, 1]
-        wlh = np.r_[obj.w, obj.l, obj.h]
-        rz = np.r_[-obj.ry]
-        box = np.r_[xyz, wlh, rz]
+        """Converts from camera to velodyne frame."""
+        xyz = calib.C2V @ np.r_[calib.R0 @ obj.t, 1]
+        box = np.r_[xyz, obj.w, obj.l, obj.h, -obj.ry]
         obj = dict(box=box, class_idx=obj.class_idx)
         return obj
 
@@ -85,10 +73,7 @@ class KittiDataset(Dataset):
             obj, item['calib']) for obj in item['objects']]
         item['boxes'] = np.stack([obj['box'] for obj in objects])
         item['class_idx'] = np.r_[[obj['class_idx'] for obj in objects]]
-
-    def drop_keys(self, item):
-        for key in ['velo_path', 'objects', 'calib']:
-            item.pop(key)
+        return item
 
     def filter_bad_objects(self, item):
         class_idx = item['class_idx'][:, None]
@@ -104,21 +89,43 @@ class KittiDataset(Dataset):
         item['boxes'] = item['boxes'][keep]
         item['class_idx'] = item['class_idx'][keep]
 
-    def train_processing(self, item):
+    def to_torch(self, item):
+        item['points'] = np.float32(item['points'])
+        item['boxes'] = torch.FloatTensor(item['boxes'])
+        item['class_idx'] = torch.LongTensor(item['class_idx'])
+
+    def drop_keys(self, item):
+        for key in ['velo_path', 'objects', 'calib']:
+            item.pop(key)
+
+    def preprocessing(self, item):
+        self.to_torch(item)
+
+    def __getitem__(self, idx):
+        item = deepcopy(self.annotations[self.inds[idx]])
+        item['points'] = read_velo(item['velo_path'])
+        self.preprocessing(item)
+        self.drop_keys(item)
+        return item
+
+
+class KittiDatasetTrain(KittiDataset):
+    """TODO: This class should certainly not need access to
+        anchors. Find better place to instantiate target assigner."""
+
+    def __init__(self, cfg):
+        super(KittiDatasetTrain, self).__init__(cfg, split='train')
+        anchors = AnchorGenerator(cfg).anchors
+        DatabaseBuilder(cfg, self.annotations)
+        self.target_assigner = ProposalTargetAssigner(cfg, anchors)
+        self.augmentation = ChainedAugmentation(cfg)
+
+    def preprocessing(self, item):
+        """Applies augmentation and assigns targets."""
         self.filter_bad_objects(item)
         points, boxes, class_idx = self.augmentation(
             item['points'], item['boxes'], item['class_idx'])
         item.update(dict(points=points, boxes=boxes, class_idx=class_idx))
         self.filter_out_of_bounds(item)
-        item['points'] = np.float32(item['points'])
-        item['boxes'] = torch.FloatTensor(item['boxes'])
-        item['class_idx'] = torch.LongTensor(item['class_idx'])
+        self.to_torch(item)
         self.target_assigner(item)
-
-    def __getitem__(self, idx):
-        item = deepcopy(self.annotations[self.inds[idx]])
-        item['points'] = read_velo(item['velo_path'])
-        if self.split == 'train':
-            self.train_processing(item)
-        self.drop_keys(item)
-        return item

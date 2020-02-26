@@ -2,9 +2,9 @@ import pickle
 import os.path as osp
 import numpy as np
 import torch
-import itertools
+from itertools import compress
 
-from .database_sampler import PointsNotInCuboids
+from .database_sampler import PointsNotInRectangles
 from pvrcnn.ops import box_iou_rotated
 
 
@@ -107,9 +107,6 @@ class ScaleAugmentation(Augmentation):
 
 
 class SampleAugmentation(Augmentation):
-    """
-    TODO: Add docstrings.
-    """
 
     def __init__(self, cfg):
         super(SampleAugmentation, self).__init__(cfg)
@@ -121,6 +118,7 @@ class SampleAugmentation(Augmentation):
             self.database = pickle.load(f)
 
     def draw_samples(self):
+        """Draw samples from each class."""
         samples = []
         for class_idx in range(self.cfg.NUM_CLASSES):
             indices = np.random.choice(
@@ -133,6 +131,7 @@ class SampleAugmentation(Augmentation):
         return samples
 
     def filter_collisions(self, boxes, sample_boxes):
+        """Remove samples with BEV iou > 0."""
         N = boxes.shape[0]
         boxes = torch.cat((
             torch.from_numpy(boxes),
@@ -151,7 +150,7 @@ class SampleAugmentation(Augmentation):
         return _points
 
     def random_translate(self, samples):
-        """Apply random translation to sampled boxes."""
+        """Apply random xy-translation to sampled boxes."""
         boxes = samples['boxes']
         lower, upper = np.r_[self.cfg.GRID_BOUNDS].reshape(2, 3)[:, :2]
         position = np.random.rand(len(boxes), 2) * (upper - lower) + lower
@@ -160,6 +159,7 @@ class SampleAugmentation(Augmentation):
         return boxes, position
 
     def reorganize_samples(self, samples):
+        """Convert list of dicts to dict of lists."""
         _samples = dict()
         for key in ['points', 'box', 'class_idx']:
             _samples[key] = [s[key] for s in samples]
@@ -167,9 +167,10 @@ class SampleAugmentation(Augmentation):
         return _samples
 
     def mask_samples(self, samples, mask):
+        """Remove samples participating in collisions."""
         samples['boxes'] = samples['boxes'][mask]
-        samples['points'] = list(itertools.compress(samples['points'], mask))
-        samples['class_idx'] = list(itertools.compress(samples['class_idx'], mask))
+        samples['points'] = list(compress(samples['points'], mask))
+        samples['class_idx'] = list(compress(samples['class_idx'], mask))
 
     def cat_samples(self, samples, points, boxes, class_idx):
         points = np.concatenate([points] + samples['points'])
@@ -183,7 +184,7 @@ class SampleAugmentation(Augmentation):
         self.random_translate(samples)
         mask = self.filter_collisions(boxes, samples['boxes'])
         self.mask_samples(samples, mask)
-        points = PointsNotInCuboids(points)(samples['boxes'])
+        points = PointsNotInRectangles(points)(samples['boxes'])
         points, boxes, class_idx = self.cat_samples(
             samples, points, boxes, class_idx)
         return points, boxes, class_idx

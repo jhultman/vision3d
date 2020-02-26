@@ -7,13 +7,12 @@ from torch.utils.data import DataLoader
 
 from pvrcnn.detector import ProposalLoss, PV_RCNN
 from pvrcnn.core import cfg, TrainPreprocessor, VisdomLinePlotter
-from pvrcnn.dataset import KittiDataset
+from pvrcnn.dataset import KittiDatasetTrain
 
 
 def build_train_dataloader(cfg, preprocessor):
-    dataset = KittiDataset(cfg, 'train')
     dataloader = DataLoader(
-        dataset,
+        KittiDatasetTrain(cfg),
         collate_fn=preprocessor.collate,
         batch_size=cfg.TRAIN.BATCH_SIZE,
         num_workers=2,
