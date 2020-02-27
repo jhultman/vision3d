@@ -29,9 +29,12 @@ class RefinementLayer(nn.Module):
         mlp = MLP(channels, bias=True, bn=False, relu=[True, False])
         return mlp
 
-    def inference(self, points, features, proposal_boxes):
-        box_deltas, scores = self(points, features, proposal_boxes)
-        boxes = self.apply_refinements(box_deltas, proposal_boxes)
+    def apply_refinements(self, box_deltas, boxes):
+        raise NotImplementedError
+
+    def inference(self, points, features, boxes):
+        box_deltas, scores = self(points, features, boxes)
+        boxes = self.apply_refinements(box_deltas, boxes)
         scores = scores.sigmoid()
         positive = 1 - scores[..., -1:]
         _, indices = torch.topk(positive, k=self.cfg.PROPOSAL.TOPK, dim=1)
@@ -41,7 +44,7 @@ class RefinementLayer(nn.Module):
         boxes = boxes.gather(1, box_indices)
         return boxes, scores, indices
 
-    def forward(self, points, features, proposal_boxes):
+    def forward(self, points, features, boxes):
         refinements = self.mlp(features.permute(0, 2, 1))
         box_deltas, scores = refinements.split(1)
         return box_deltas, scores

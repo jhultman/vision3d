@@ -16,14 +16,18 @@ class ProposalLayer(nn.Module):
             cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES + 1) * cfg.NUM_YAW, 1)
         self.conv_reg = nn.Conv2d(
             cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW * cfg.BOX_DOF, 1)
+        self._init_weights()
+
+    def _init_weights(self):
         nn.init.constant_(self.conv_cls.bias, (-math.log(1 - .01) / .01))
+        nn.init.constant_(self.conv_reg.bias, 0)
+        for m in (self.conv_cls.weight, self.conv_reg.weight):
+            nn.init.normal_(m, std=0.01)
 
     def inference(self, feature_map):
         """TODO: Sigmoid and topk proposal indexing."""
         cls_map, reg_map = self(feature_map)
-        scores = cls_map.sigmoid()
-        class_idx = torch.arange(self.cfg.NUM_CLASSES)
-        class_idx = class_idx[None, :, None, None, None].expand_as(scores)
+        scores = cls_map.softmax(1)
         raise NotImplementedError
 
     def reshape_cls(self, cls_map):
@@ -47,7 +51,7 @@ class ProposalLayer(nn.Module):
 class ProposalLoss(nn.Module):
     """
     Notation: (P_i, G_i, M_i) ~ (predicted, ground truth, mask)
-    TODO: Binned angle loss.
+    TODO: Replace with compiled cuda focal loss.
     """
 
     def __init__(self, cfg):
@@ -76,7 +80,6 @@ class ProposalLoss(nn.Module):
         return loss
 
     def forward(self, item):
-        """TODO: Decide on cleaner input representation."""
         keys = ['G_cls', 'M_cls', 'P_cls', 'G_reg', 'M_reg', 'P_reg']
         G_cls, M_cls, P_cls, G_reg, M_reg, P_reg = map(item.get, keys)
         cls_loss = self.cls_loss(P_cls, G_cls, M_cls)

@@ -9,9 +9,10 @@ from .layers import MLP
 
 class RoiGridPool(nn.Module):
     """
+    Pools features from within proposals.
     TODO: I think must be misunderstanding dimensions claimed in paper.
         If sample 216 gridpoints in each proposal, and keypoint features
-        are of dim 256, and gridpoint features are vectorized before Linear Layer,
+        are of dim 256, and gridpoint features are vectorized before linear layer,
         causes 216 * 256 * 256 parameters in reduction...
     TODO: Document input and output sizes.
     """
@@ -19,7 +20,7 @@ class RoiGridPool(nn.Module):
     def __init__(self, cfg):
         super(RoiGridPool, self).__init__()
         self.pnet = self.build_pointnet(cfg)
-        self.reduction = self.build_reduction(cfg)
+        self.reduction = MLP(cfg.GRIDPOOL.MLPS_REDUCTION)
         self.cfg = cfg
 
     def build_pointnet(self, cfg):
@@ -31,16 +32,12 @@ class RoiGridPool(nn.Module):
         )
         return pnet
 
-    def build_reduction(self, cfg):
-        reduction = MLP(cfg.GRIDPOOL.MLPS_REDUCTION)
-        return reduction
-
     def rotate_z(self, points, theta):
         """
         Rotate points by theta around z-axis.
-        :points FloatTensor of shape (b, n, m, 3)
-        :theta FloatTensor of shape (b, n)
-        :return FloatTensor of shape (b, n, m, 3)
+        :points (b, n, m, 3)
+        :theta (b, n)
+        :return (b, n, m, 3)
         """
         b, n, m, _ = points.shape
         theta = theta.unsqueeze(-1).expand(-1, -1, m)
@@ -51,35 +48,26 @@ class RoiGridPool(nn.Module):
         xyz = torch.cat((xy.squeeze(-1), z), dim=-1)
         return xyz
 
-    def sample_gridpoints(self, proposals):
+    def sample_gridpoints(self, boxes):
         """
-        TODO: Uniform random number should be in
-        [-0.5, 0.5] to place sample in box. Currently
-        it is [0, 1].
-
-        Generate gridpoints within axis-aligned
-        object proposals then rotate about z-axis.
-        :return FloatTensor of shape (nb, ng, 3)
+        Sample axis-aligned points, then rotate.
+        :return (b, n, ng, 3)
         """
-        b, n, _ = proposals.shape
+        b, n, _ = boxes.shape
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
-        gridpoints = torch.rand((b, n, m, 3), device=proposals.device) * \
-            proposals[:, :, None, 3:6]
-        gridpoints = self.rotate_z(gridpoints, proposals[..., -1]) + \
-            proposals[:, :, None, 0:3]
+        grid_points = boxes.new_tensor((b, n, n, 3)).rand_()
+        gridpoints = boxes[:, :, None, 3:6] * \
+            (torch.rand((b, n, m, 3), device=boxes.device) - 0.5)
+        gridpoints = boxes[:, :, None, 0:3] + \
+            self.rotate_z(gridpoints, boxes[..., -1])
         return gridpoints
 
     def forward(self, proposals, keypoint_xyz, keypoint_features):
-        """
-        Gather features from within proposals.
-        TODO: Ensure gridpoint features are reduced correctly.
-        """
         b, n, _ = proposals.shape
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
-        gridpoints = self.sample_gridpoints(proposals)
-        gridpoints = gridpoints.view(b, -1, 3)
-        pooled_features = self.pnet(keypoint_xyz, keypoint_features, gridpoints)[1]
-        pooled_features = pooled_features.view(b, -1, n, m) \
+        gridpoints = self.sample_gridpoints(proposals).view(b, -1, 3)
+        features = self.pnet(keypoint_xyz, keypoint_features, gridpoints)[1]
+        features = features.view(b, -1, n, m) \
             .permute(0, 2, 1, 3).contiguous().view(b, n, -1)
-        pooled_features = self.reduction(pooled_features)
-        return pooled_features
+        features = self.reduction(features)
+        return features

@@ -57,8 +57,13 @@ class MLP(nn.Sequential):
         bias, bn, relu = map(partial(self._repeat, n=len(channels)), (bias, bn, relu))
         for i in range(len(channels) - 1):
             self.add_module(f'linear_{i}', nn.Linear(channels[i], channels[i+1], bias=bias[i]))
+            nn.init.normal_(self[-1].weight, std=0.01)
+            if bias[i]:
+                nn.init.constant_(self[-1].bias, 0)
             if bn[i]:
                 self.add_module(f'batchnorm_{i}', nn.BatchNorm1d(channels[i+1]))
+                nn.init.constant_(self[-1].weight, 1)
+                nn.init.constant_(self[-1].bias, 0)
             if relu[i]:
                 self.add_module(f'relu_{i}', nn.ReLU(inplace=True))
 

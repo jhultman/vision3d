@@ -22,7 +22,7 @@ def main():
     ])
     with torch.no_grad():
         item = to_device(preprocessor(item))
-        out = net(item, proposals_only=True)
+        out = net.proposal(item)
 
 
 if __name__ == '__main__':

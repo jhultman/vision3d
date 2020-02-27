@@ -18,8 +18,6 @@ class PV_RCNN(nn.Module):
     TODO: Improve docstrings.
     TODO: Some docstrings may claim incorrect dimensions.
     TODO: Figure out clean way to handle proposals_only forward.
-    TODO: Only sparse CNN currently uses explicit weight initialization.
-        Figure out how to initialize regression heads, etc.
     """
 
     def __init__(self, cfg):
@@ -57,14 +55,8 @@ class PV_RCNN(nn.Module):
         keypoints = keypoints.transpose(1, 2).contiguous()
         return keypoints
 
-    def pointnets(self, cnn_out, keypoint_xyz):
-        """
-        Call PointNets to gather keypoint features from CNN feature volumes.
-        :param xyz: (B, N, 3) tensor of the xyz coordinates of the features
-        :param features: (B, N, C) tensor of the descriptors of the the features
-        :param new_xyz: (B, npoint, 3) tensor of the new features' xyz
-        :return (B, npoint, \sum_k(mlps[k][-1])) tensor of the new_features descriptors
-        """
+    def _pointnets(self, cnn_out, keypoint_xyz):
+        """xyz (B, N, 3) | features (B, N, C) | new_xyz (B, M, C) | return (B, M, Co)"""
         pnet_out = []
         for (voxel_xyz, voxel_features), pnet in zip(cnn_out, self.pnets):
             voxel_xyz = voxel_xyz.contiguous()
@@ -76,21 +68,18 @@ class PV_RCNN(nn.Module):
     def point_feature_extract(self, item, cnn_features, bev_map):
         points_split = torch.split(item['points'], [3, 1], dim=-1)
         cnn_features = [points_split] + cnn_features
-        point_features = self.pointnets(cnn_features, item['keypoints'])
+        point_features = self._pointnets(cnn_features, item['keypoints'])
         bev_features = self.bev(bev_map, item['keypoints'])
         point_features = torch.cat(point_features + [bev_features], dim=1)
         return point_features
 
-    def forward(self, item, proposals_only=False):
+    def proposal(self, item):
         item['keypoints'] = self.sample_keypoints(item['points'])
         features = self.vfe(item['features'], item['occupancy'])
         cnn_features, bev_map = self.cnn(features, item['coordinates'], item['batch_size'])
-        if proposals_only:
-            proposal_scores, proposal_boxes = self.proposal_layer(bev_map)
-            item.update(dict(P_cls=proposal_scores, P_reg=proposal_boxes))
-            return item
-        proposal_scores, proposal_boxes = self.proposal_layer.inference(bev_map)
-        point_features = self.point_feature_extract(item, cnn_features, bev_map)
-        pooled_features = self.roi_grid_pool(proposal_boxes, item['keypoints'], point_features)
-        predictions, scores_detections = self.refinement_layer(proposals, pooled_features)
-        return predictions
+        scores, boxes = self.proposal_layer(bev_map)
+        item.update(dict(P_cls=scores, P_reg=boxes))
+        return item
+
+    def forward(self, item):
+        raise NotImplementedError

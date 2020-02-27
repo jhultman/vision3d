@@ -60,7 +60,7 @@ def train_model(model, dataloader, optimizer, lr_scheduler, loss_fn, epochs, sta
         for step, item in enumerate(tqdm(dataloader, desc=f'Epoch {epoch}')):
             to_device(item)
             optimizer.zero_grad()
-            out = model(item, proposals_only=True)
+            out = model.proposal(item)
             losses = loss_fn(out)
             losses['loss'].backward()
             optimizer.step()
