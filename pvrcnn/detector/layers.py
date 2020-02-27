@@ -1,13 +1,24 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from functools import partial
+
+
+class VoxelFeatureExtractor(nn.Module):
+    """Computes mean of non-zero points within voxel."""
+
+    def forward(self, feature, occupancy):
+        """
+        :feature FloatTensor of shape (N, K, C)
+        :return FloatTensor of shape (N, C)
+        """
+        denominator = occupancy.type_as(feature).view(-1, 1)
+        feature = (feature.sum(1) / denominator).contiguous()
+        return feature
 
 
 class BEVFeatureGatherer(nn.Module):
-    """
-    TODO: Does this class really need to live in its
-        own file? Codebase is very fragmented.
-    """
+    """Gather BEV features at keypoints using bilinear interpolation."""
 
     def __init__(self, cfg, voxel_offset, base_voxel_size):
         super(BEVFeatureGatherer, self).__init__()
@@ -33,11 +44,25 @@ class BEVFeatureGatherer(nn.Module):
         return indices
 
     def forward(self, feature_map, keypoint_xyz):
-        """
-        Project 3D pixel grid to XY-plane and gather
-        BEV features using bilinear interpolation.
-        """
         N, C, H, W = feature_map.shape
         indices = self.compute_bev_indices(keypoint_xyz, H, W)
         features = F.grid_sample(feature_map, indices, align_corners=True).squeeze(2)
         return features
+
+
+class MLP(nn.Sequential):
+
+    def __init__(self, channels, bias=False, bn=False, relu=True):
+        super(MLP, self).__init__()
+        bias, bn, relu = map(partial(self._repeat, n=len(channels)), (bias, bn, relu))
+        for i in range(len(channels) - 1):
+            self.add_module(f'linear_{i}', nn.Linear(channels[i], channels[i+1], bias=bias[i]))
+            if bn[i]:
+                self.add_module(f'batchnorm_{i}', nn.BatchNorm1d(channels[i+1]))
+            if relu[i]:
+                self.add_module(f'relu_{i}', nn.ReLU(inplace=True))
+
+    def _repeat(self, module, n):
+        if not isinstance(module, (tuple, list)):
+            module = [module] * (n - 1)
+        return module

@@ -45,19 +45,6 @@ def compute_grid_shape(cfg):
     return grid_shape
 
 
-class VoxelFeatureExtractor(nn.Module):
-    """Computes mean of non-zero points within voxel."""
-
-    def forward(self, feature, occupancy):
-        """
-        :feature FloatTensor of shape (N, K, C)
-        :return FloatTensor of shape (N, C)
-        """
-        denominator = occupancy.type_as(feature).view(-1, 1)
-        feature = (feature.sum(1) / denominator).contiguous()
-        return feature
-
-
 class SparseCNNBase(nn.Module):
     """
     block      shape    stride

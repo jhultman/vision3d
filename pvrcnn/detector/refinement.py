@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from .mlp import MLP
+from .layers import MLP
 
 
 class RefinementLayer(nn.Module):

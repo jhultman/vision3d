@@ -33,10 +33,8 @@ class Preprocessor(nn.Module):
         return map(np.concatenate, (features, coordinates, occupancy))
 
     def pad_for_batch(self, points: List) -> np.ndarray:
-        """
-        Pad with subsampled points to form dense minibatch.
-        :return np.ndarray of shape (B, N, C)
-        """
+        """Pad with subsampled points to form dense minibatch.
+        :return np.ndarray of shape (B, N, C)"""
         num_points = np.r_[[p.shape[0] for p in points]]
         pad = num_points.max() - num_points
         points_batch = []
@@ -49,10 +47,11 @@ class Preprocessor(nn.Module):
     def forward(self, item):
         """
         Compute batch input from points.
-        :points_in length-B list of np.ndarrays of shape (Np, 4)
+        :points_in length B list of np.ndarrays of shape (Np, 4)
         :points_out FloatTensor of shape (B, Np, 4)
-        :features FloatTensor of shape (B, Nv, 1)
-        :coordinates IntTensor of shape (B, Nv, 4)
+        :features FloatTensor of shape (B * Nv, 1)
+        :coordinates IntTensor of shape (B * Nv, 4)
+        :occupancy LongTensor of shape (B * Nv, 4)
         """
         features, coordinates, occupancy = self.generate_batch_voxels(item['points'])
         points = self.pad_for_batch(item['points'])

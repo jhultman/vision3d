@@ -4,7 +4,7 @@ from torch import nn
 
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 
-from .mlp import MLP
+from .layers import MLP
 
 
 class RoiGridPool(nn.Module):

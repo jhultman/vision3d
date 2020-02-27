@@ -6,9 +6,9 @@ from torch import nn
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_utils import furthest_point_sample, gather_operation
 
-from .bev import BEVFeatureGatherer
+from .layers import BEVFeatureGatherer, VoxelFeatureExtractor
 from .roi_grid_pool import RoiGridPool
-from .sparse_cnn import CNN_FACTORY, VoxelFeatureExtractor
+from .sparse_cnn import CNN_FACTORY
 from .proposal import ProposalLayer
 from .refinement import RefinementLayer
 
