@@ -101,5 +101,5 @@ if __name__ == '__main__':
         pass
     global plotter
     plotter = VisdomLinePlotter(env='training')
-    cfg.merge_from_file('../configs/car_lite.yaml')
+    cfg.merge_from_file('../configs/car.yaml')
     main()

@@ -3,28 +3,27 @@ An unofficial Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.131
 
 ![PV-RCNN](images/pvrcnn.png)
 
-## News (02/22/2020)
-- Add database sampling augmentation (see [augmentation.py](https://github.com/jhultman/PV-RCNN/blob/master/pvrcnn/dataset/augmentation.py#L108) for details).
-- Add fast rotated nms on gpu for target assignment and inference (from detectron2).
-- Code refactor and bug fixes.
+## News (02/26/2020)
+- Added some preliminary results for proposal stage (see [training.md](training.md)).
 
 ## Project goals
-- Simple inference (require only numpy array of raw points).
-- Clean, testable codebase that's easy to debug.
+- Emphasis on simple codebase (no 1,000 LOC functions).
 - General 3D detection library (easy to extend to new models).
-- Reproduce results of paper.
+- Hope to reproduce results of paper.
 
 ## Status and plans
-- This repo is under active development.
+- This repo is still under active development.
+- Proposal stage seems to work okay at the moment.
+- Hope to add support for SECOND soon (just need to add RPN).
 - I will post a pretrained model when codebase stabilizes and results are good.
 - I will add more detailed training and inference instructions.
-- I will add description of codebase.
+- I will add description of codebase and design choices.
 
 ## Usage
 See [inference.py](pvrcnn/inference.py).
 
 ## Installation
-See [install.md](install.md) and please ask if you have any questions. I will supply a Docker build soon.
+See [install.md](install.md) and please ask if you have any questions. I will supply a Docker build soon. I hope to add simple one-line install via `pip install .` soon.
 
 ## Citing
 If you find this work helpful in your research, please consider starring this repo and citing:

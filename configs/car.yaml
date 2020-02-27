@@ -1,5 +1,3 @@
-# Single class model has NaN problem at moment.
-# TODO: Debug proposal target assigner for single class.
 ANCHORS: [{
   names: ['Car', 'Van'],
   wlh: [1.6, 3.9, 1.56],
@@ -11,7 +9,7 @@ NUM_CLASSES: 1
 CNN: 'SpMiddleFHD'
 TRAIN:
   BATCH_SIZE: 6
-  LAMBDA: 0.1
-  LR: 1e-3
+  LAMBDA: 1.0
+  LR: 1e-4
 AUG:
   NUM_SAMPLE_OBJECTS: [15, 0, 0]

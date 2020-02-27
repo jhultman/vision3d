@@ -56,7 +56,7 @@ class SparseCNNBase(nn.Module):
     """
 
     def __init__(self, cfg):
-        """:grid_shape voxel grid dimensions in ZYX order."""
+        """grid_shape given in ZYX order."""
         super(SparseCNNBase, self).__init__()
         self.cfg = cfg
         self.grid_shape = compute_grid_shape(cfg)
