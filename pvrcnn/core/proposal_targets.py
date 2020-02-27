@@ -1,4 +1,5 @@
 import torch
+import math
 from torch import nn
 
 from pvrcnn.ops import box_iou_rotated, Matcher
@@ -7,11 +8,7 @@ from pvrcnn.ops import box_iou_rotated, Matcher
 class ProposalTargetAssigner(nn.Module):
     """
     Match ground truth boxes to anchors by IOU.
-    TODO: Simplify target_cls assignment.
-    TODO: Make this run faster.
-    TODO: Use F.one_hot to minimize chance of bugs.
-    TODO: Include background class in targets (NUM_CLASSES + 1).
-    TODO: Use Faster R-CNN style vectorized anchors to simplify indexing.
+    TODO: Make this run faster if possible.
     """
 
     def __init__(self, cfg, anchors):
@@ -34,22 +31,21 @@ class ProposalTargetAssigner(nn.Module):
         )
         return matrix
 
-    def handle_assignment_conflicts(self, match_labels):
+    def get_cls_targets(self, G_cls):
         """
         1. Disable ambiguous (matched to multiple classes).
         2. Clobber ignore with negative.
         3. Replace ignore -1 marker with binary mask.
-
-        TODO: This code is hard to understand.
+        4. One-hot encode with last index background.
         """
-        ambiguous = match_labels.eq(1).int().sum(0) > 1
-        match_labels[:, ambiguous] = -1
-        negative = match_labels.eq(0).any(0)
-        positive = match_labels.eq(1).int().sum(0) == 1
-        match_labels[:, negative & ~positive] = 0
-        loss_mask = ~match_labels.eq(-1).all(0, keepdim=True)
-        match_labels[match_labels.eq(-1)] = 0
-        return loss_mask
+        ambiguous = G_cls.eq(1).int().sum(0) > 1
+        G_cls[:, ambiguous] = -1
+        negative = (G_cls.eq(0).any(0) & ~G_cls.eq(1).any(0))
+        G_cls[:, negative] = 0
+        M_cls = ~G_cls.eq(-1).all(0, keepdim=True)
+        G_cls[G_cls.eq(-1)] = 0
+        G_cls = torch.cat((G_cls, negative.unsqueeze(0).type_as(G_cls)))
+        return G_cls, M_cls
 
     def _encode_diagonal(self, A_wlh):
         A_wl, A_h = A_wlh.split([2, 1], -1)
@@ -58,23 +54,20 @@ class ProposalTargetAssigner(nn.Module):
         return A_norm
 
     def get_reg_targets(self, boxes, box_idx, G_cls):
-        """
-        Standard VoxelNet-style box encoding.
-        TODO: Angle binning, angle modulo.
-        """
-        A = self.anchors[G_cls == 1]
-        G = boxes[box_idx[G_cls == 1]].cuda()
+        """Standard VoxelNet-style box encoding."""
+        M_reg = G_cls[:-1] == 1
+        A = self.anchors[M_reg]
+        G = boxes[box_idx[M_reg]].cuda()
         G_xyz, G_wlh, G_yaw = G.split([3, 3, 1], -1)
         A_xyz, A_wlh, A_yaw = A.split([3, 3, 1], -1)
         A_norm = self._encode_diagonal(A_wlh)
-        values = torch.cat((
+        G_reg = torch.cat((
             (G_xyz - A_xyz) / A_norm,
             (G_wlh / A_wlh).log(),
-            (G_yaw - A_yaw)), dim=-1
+            (G_yaw - A_yaw) % math.pi), dim=-1
         )
-        G_reg = torch.zeros_like(self.anchors)
-        G_reg[G_cls == 1] = values
-        M_reg = G_cls[:, :-1, ..., None].sum(1, keepdim=True).float()
+        M_reg = M_reg.unsqueeze(-1)
+        G_reg = torch.zeros_like(self.anchors).masked_scatter_(M_reg, G_reg)
         return G_reg, M_reg
 
     def get_matches(self, boxes, class_idx):
@@ -96,6 +89,6 @@ class ProposalTargetAssigner(nn.Module):
     def forward(self, item):
         boxes, class_idx = item['boxes'], item['class_idx']
         box_idx, G_cls = self.get_matches(boxes, class_idx)
-        M_cls = self.handle_assignment_conflicts(G_cls).float()
+        G_cls, M_cls = self.get_cls_targets(G_cls)
         G_reg, M_reg = self.get_reg_targets(boxes, box_idx, G_cls)
-        item.update(dict(G_cls=G_cls.float(), G_reg=G_reg, M_cls=M_cls, M_reg=M_reg))
+        item.update(dict(G_cls=G_cls, G_reg=G_reg, M_cls=M_cls, M_reg=M_reg))

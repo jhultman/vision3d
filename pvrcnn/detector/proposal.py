@@ -1,5 +1,5 @@
 import torch
-import numpy as np
+import math
 from torch import nn
 import torch.nn.functional as F
 
@@ -13,12 +13,11 @@ class ProposalLayer(nn.Module):
         super(ProposalLayer, self).__init__()
         self.cfg = cfg
         self.conv_cls = nn.Conv2d(
-            cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW, 1)
+            cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES + 1) * cfg.NUM_YAW, 1)
         self.conv_reg = nn.Conv2d(
             cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW * cfg.BOX_DOF, 1)
-        nn.init.constant_(self.conv_cls.bias, (-np.log(1 - .01) / .01))
+        nn.init.constant_(self.conv_cls.bias, (-math.log(1 - .01) / .01))
 
-    @torch.no_grad()
     def inference(self, feature_map):
         """TODO: Sigmoid and topk proposal indexing."""
         cls_map, reg_map = self(feature_map)
@@ -29,7 +28,7 @@ class ProposalLayer(nn.Module):
 
     def reshape_cls(self, cls_map):
         B, _, ny, nx = cls_map.shape
-        shape = (B, self.cfg.NUM_CLASSES, self.cfg.NUM_YAW, ny, nx)
+        shape = (B, self.cfg.NUM_CLASSES + 1, self.cfg.NUM_YAW, ny, nx)
         cls_map = cls_map.view(shape)
         return cls_map
 
@@ -66,13 +65,13 @@ class ProposalLoss(nn.Module):
         G_xyz, G_wlh, G_yaw = G_reg.split([3, 3, 1], dim=-1)
         loss_xyz = F.smooth_l1_loss(P_xyz, G_xyz, reduction='none')
         loss_wlh = F.smooth_l1_loss(P_wlh, G_wlh, reduction='none')
-        loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none') / np.pi
+        loss_yaw = F.smooth_l1_loss(P_yaw, G_yaw, reduction='none') / math.pi
         loss = self.masked_average(loss_xyz + loss_wlh + loss_yaw, M_reg)
         return loss
 
     def cls_loss(self, P_cls, G_cls, M_cls):
         """Loss is applied at all non-ignore sites. Assumes logit scores."""
-        loss = sigmoid_focal_loss(P_cls, G_cls, reduction='none')
+        loss = sigmoid_focal_loss(P_cls, G_cls.float(), reduction='none')
         loss = self.masked_average(loss, M_cls)
         return loss
 
