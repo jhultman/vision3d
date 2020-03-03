@@ -56,20 +56,20 @@ class KittiDataset(Dataset):
         for idx in tqdm(self.inds, desc='Generating annotations'):
             item = dict(
                 velo_path=self._path_helper('velodyne_reduced', idx, 'bin'),
-                calib=read_calib(self._path_helper('calib', idx, 'txt')),
-                objects=read_label(self._path_helper('label_2', idx, 'txt')), idx=idx,
+                objects=read_label(self._path_helper('label_2', idx, 'txt')),
+                calib=read_calib(self._path_helper('calib', idx, 'txt')), idx=idx,
             )
-            self.annotations[idx] = self.make_simple_objects(item)
+            self.annotations[idx] = self.numpify_objects(item)
 
-    def make_simple_object(self, obj, calib):
+    def numpify_object(self, obj, calib):
         """Converts from camera to velodyne frame."""
         xyz = calib.C2V @ np.r_[calib.R0 @ obj.t, 1]
         box = np.r_[xyz, obj.w, obj.l, obj.h, -obj.ry]
         obj = dict(box=box, class_idx=obj.class_idx)
         return obj
 
-    def make_simple_objects(self, item):
-        objects = [self.make_simple_object(
+    def numpify_objects(self, item):
+        objects = [self.numpify_object(
             obj, item['calib']) for obj in item['objects']]
         item['boxes'] = np.stack([obj['box'] for obj in objects])
         item['class_idx'] = np.r_[[obj['class_idx'] for obj in objects]]
@@ -117,11 +117,12 @@ class KittiDatasetTrain(KittiDataset):
         super(KittiDatasetTrain, self).__init__(cfg, split='train')
         anchors = AnchorGenerator(cfg).anchors
         DatabaseBuilder(cfg, self.annotations)
-        self.target_assigner = ProposalTargetAssigner(cfg, anchors)
         self.augmentation = ChainedAugmentation(cfg)
+        self.target_assigner = ProposalTargetAssigner(cfg, anchors)
 
     def preprocessing(self, item):
         """Applies augmentation and assigns targets."""
+        np.random.shuffle(item['points'])
         self.filter_bad_objects(item)
         points, boxes, class_idx = self.augmentation(
             item['points'], item['boxes'], item['class_idx'])

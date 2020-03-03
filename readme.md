@@ -3,8 +3,8 @@ An unofficial Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.131
 
 ![PV-RCNN](images/pvrcnn.png)
 
-## News (02/26/2020)
-- Added some preliminary results for proposal stage (see [training.md](training.md)).
+## News (03/02/2020)
+- Added implementation of SECOND.
 
 ## Project goals
 - Emphasis on simple codebase (no 1,000 LOC functions).
@@ -13,8 +13,6 @@ An unofficial Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.131
 
 ## Status and plans
 - This repo is still under active development.
-- Proposal stage seems to work okay at the moment.
-- Hope to add support for SECOND soon (just need to add RPN).
 - I will post a pretrained model when codebase stabilizes and results are good.
 - I will add more detailed training and inference instructions.
 - I will add description of codebase and design choices.
@@ -23,7 +21,7 @@ An unofficial Pytorch implementation of [PV-RCNN](https://arxiv.org/pdf/1912.131
 See [inference.py](pvrcnn/inference.py).
 
 ## Installation
-See [install.md](install.md) and please ask if you have any questions. I will supply a Docker build soon. I hope to add simple one-line install via `pip install .` soon.
+See [install.md](install.md) and please ask if you have any questions. I will supply a Docker build soon.
 
 ## Citing
 If you find this work helpful in your research, please consider starring this repo and citing:

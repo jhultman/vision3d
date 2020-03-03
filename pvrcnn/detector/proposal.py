@@ -13,7 +13,7 @@ class ProposalLayer(nn.Module):
         super(ProposalLayer, self).__init__()
         self.cfg = cfg
         self.conv_cls = nn.Conv2d(
-            cfg.PROPOSAL.C_IN, (cfg.NUM_CLASSES + 1) * cfg.NUM_YAW, 1)
+            cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW, 1)
         self.conv_reg = nn.Conv2d(
             cfg.PROPOSAL.C_IN, cfg.NUM_CLASSES * cfg.NUM_YAW * cfg.BOX_DOF, 1)
         self._init_weights()
@@ -27,12 +27,12 @@ class ProposalLayer(nn.Module):
     def inference(self, feature_map):
         """TODO: Sigmoid and topk proposal indexing."""
         cls_map, reg_map = self(feature_map)
-        scores = cls_map.softmax(1)
+        scores = cls_map.sigmoid()
         raise NotImplementedError
 
     def reshape_cls(self, cls_map):
         B, _, ny, nx = cls_map.shape
-        shape = (B, self.cfg.NUM_CLASSES + 1, self.cfg.NUM_YAW, ny, nx)
+        shape = (B, self.cfg.NUM_CLASSES, self.cfg.NUM_YAW, ny, nx)
         cls_map = cls_map.view(shape)
         return cls_map
 
@@ -50,7 +50,8 @@ class ProposalLayer(nn.Module):
 
 class ProposalLoss(nn.Module):
     """
-    Notation: (P_i, G_i, M_i) ~ (predicted, ground truth, mask)
+    Notation: (P_i, G_i, M_i) ~ (predicted, ground truth, mask).
+    Loss is averaged by number of positive examples.
     TODO: Replace with compiled cuda focal loss.
     """
 
@@ -60,7 +61,7 @@ class ProposalLoss(nn.Module):
 
     def masked_average(self, loss, mask):
         mask = mask.type_as(loss)
-        loss = (loss * mask).sum() / mask.sum()
+        loss = (loss * mask).sum()
         return loss
 
     def reg_loss(self, P_reg, G_reg, M_reg):
@@ -82,8 +83,9 @@ class ProposalLoss(nn.Module):
     def forward(self, item):
         keys = ['G_cls', 'M_cls', 'P_cls', 'G_reg', 'M_reg', 'P_reg']
         G_cls, M_cls, P_cls, G_reg, M_reg, P_reg = map(item.get, keys)
-        cls_loss = self.cls_loss(P_cls, G_cls, M_cls)
-        reg_loss = self.reg_loss(P_reg, G_reg, M_reg)
+        normalizer = M_reg.type_as(P_reg).sum().clamp_(min=1)
+        cls_loss = self.cls_loss(P_cls, G_cls, M_cls) / normalizer
+        reg_loss = self.reg_loss(P_reg, G_reg, M_reg) / normalizer
         loss = cls_loss + self.cfg.TRAIN.LAMBDA * reg_loss
         losses = dict(cls_loss=cls_loss, reg_loss=reg_loss, loss=loss)
         return losses

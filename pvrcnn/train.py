@@ -1,11 +1,11 @@
 import os
 import os.path as osp
-import numpy as np
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+import multiprocessing
 
-from pvrcnn.detector import ProposalLoss, PV_RCNN
+from pvrcnn.detector import ProposalLoss, PV_RCNN, Second
 from pvrcnn.core import cfg, TrainPreprocessor, VisdomLinePlotter
 from pvrcnn.dataset import KittiDatasetTrain
 
@@ -60,14 +60,16 @@ def train_model(model, dataloader, optimizer, lr_scheduler, loss_fn, epochs, sta
         for step, item in enumerate(tqdm(dataloader, desc=f'Epoch {epoch}')):
             to_device(item)
             optimizer.zero_grad()
-            out = model.proposal(item)
+            out = model(item)
             losses = loss_fn(out)
             losses['loss'].backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=35)
             optimizer.step()
             lr_scheduler.step()
-            if (step % 50) == 0:
+            if (step % 10) == 0:
                 update_plot(losses, 'step')
-        save_cpkt(model, optimizer, epoch)
+        if (epoch % 5) == 0 or (epoch == epochs - 1):
+            save_cpkt(model, optimizer, epoch)
 
 
 def get_proposal_parameters(model):
@@ -80,26 +82,25 @@ def get_proposal_parameters(model):
 
 def main():
     """TODO: Trainer class to manage objects."""
-    model = PV_RCNN(cfg).cuda()
+    model = Second(cfg).cuda()
+    parameters = model.parameters()
     loss_fn = ProposalLoss(cfg)
     preprocessor = TrainPreprocessor(cfg)
     dataloader = build_train_dataloader(cfg, preprocessor)
-    parameters = get_proposal_parameters(model)
-    optimizer = torch.optim.Adam(parameters, lr=cfg.TRAIN.LR)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=3e-3, steps_per_epoch=len(dataloader), epochs=cfg.TRAIN.EPOCHS)
-    start_epoch = load_ckpt('./ckpts/epoch_8.pth', model, optimizer)
-    train_model(model, dataloader, optimizer, scheduler, loss_fn, cfg.TRAIN.EPOCHS, start_epoch)
+    optimizer = torch.optim.Adam(parameters, lr=0.01)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.01,
+        steps_per_epoch=len(dataloader), epochs=cfg.TRAIN.EPOCHS)
+    start_epoch = load_ckpt('./ckpts/epoch_5.pth', model, optimizer)
+    train_model(model, dataloader, optimizer,
+        scheduler, loss_fn, cfg.TRAIN.EPOCHS, start_epoch)
 
-
-from multiprocessing import set_start_method
 
 if __name__ == '__main__':
     try:
-        set_start_method('spawn')
+        multiprocessing.set_start_method('spawn')
     except RuntimeError:
         pass
     global plotter
-    plotter = VisdomLinePlotter(env='training')
-    cfg.merge_from_file('../configs/car.yaml')
+    plotter = VisdomLinePlotter(env='second')
+    cfg.merge_from_file('../configs/second/car.yaml')
     main()

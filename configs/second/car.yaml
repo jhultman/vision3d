@@ -1,3 +1,6 @@
+MAX_OCCUPANCY: 5
+MAX_VOXELS: 20000
+GRID_BOUNDS: [0, -40.0, -3, 70.4, 40.0, 1]
 ANCHORS: [{
   names: ['Car', 'Van'],
   wlh: [1.6, 3.9, 1.56],
@@ -6,10 +9,9 @@ ANCHORS: [{
   center_z: -1.0,
 }]
 NUM_CLASSES: 1
-CNN: 'SpMiddleFHD'
 TRAIN:
-  BATCH_SIZE: 6
+  BATCH_SIZE: 5
   LAMBDA: 1.0
-  LR: 1e-4
+  EPOCHS: 60
 AUG:
   NUM_SAMPLE_OBJECTS: [15, 0, 0]

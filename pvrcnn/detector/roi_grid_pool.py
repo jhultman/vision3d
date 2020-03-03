@@ -55,7 +55,6 @@ class RoiGridPool(nn.Module):
         """
         b, n, _ = boxes.shape
         m = self.cfg.GRIDPOOL.NUM_GRIDPOINTS
-        grid_points = boxes.new_tensor((b, n, n, 3)).rand_()
         gridpoints = boxes[:, :, None, 3:6] * \
             (torch.rand((b, n, m, 3), device=boxes.device) - 0.5)
         gridpoints = boxes[:, :, None, 0:3] + \

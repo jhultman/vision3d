@@ -1,5 +1,0 @@
-CNN: 'SpMiddleFHDLite'
-TRAIN:
-  BATCH_SIZE: 16
-  LAMBDA: 0.1
-  LR: 1e-2

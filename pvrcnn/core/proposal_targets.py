@@ -34,17 +34,12 @@ class ProposalTargetAssigner(nn.Module):
     def get_cls_targets(self, G_cls):
         """
         1. Disable ambiguous (matched to multiple classes).
-        2. Clobber ignore with negative.
-        3. Replace ignore -1 marker with binary mask.
-        4. One-hot encode with last index background.
+        2. Replace ignore marker (-1) with binary mask.
         """
         ambiguous = G_cls.eq(1).int().sum(0) > 1
         G_cls[:, ambiguous] = -1
-        negative = (G_cls.eq(0).any(0) & ~G_cls.eq(1).any(0))
-        G_cls[:, negative] = 0
-        M_cls = ~G_cls.eq(-1).all(0, keepdim=True)
-        G_cls[G_cls.eq(-1)] = 0
-        G_cls = torch.cat((G_cls, negative.unsqueeze(0).type_as(G_cls)))
+        M_cls = G_cls.ne(-1)
+        G_cls = G_cls.clamp_(min=0)
         return G_cls, M_cls
 
     def _encode_diagonal(self, A_wlh):
@@ -55,7 +50,7 @@ class ProposalTargetAssigner(nn.Module):
 
     def get_reg_targets(self, boxes, box_idx, G_cls):
         """Standard VoxelNet-style box encoding."""
-        M_reg = G_cls[:-1] == 1
+        M_reg = G_cls == 1
         A = self.anchors[M_reg]
         G = boxes[box_idx[M_reg]].cuda()
         G_xyz, G_wlh, G_yaw = G.split([3, 3, 1], -1)
