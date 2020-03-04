@@ -15,7 +15,7 @@ def build_train_dataloader(cfg, preprocessor):
         KittiDatasetTrain(cfg),
         collate_fn=preprocessor.collate,
         batch_size=cfg.TRAIN.BATCH_SIZE,
-        num_workers=2,
+        num_workers=1,
     )
     return dataloader
 

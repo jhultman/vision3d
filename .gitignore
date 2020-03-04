@@ -1,9 +1,8 @@
-Pointnet2.PyTorch/*
-spconv/*
-torchsearchsorted/*
+thirdparty/*
 data/*
 
 pythonpath.sh
+**/__pycache__/*
 *.bin
 *.pth
 *.so

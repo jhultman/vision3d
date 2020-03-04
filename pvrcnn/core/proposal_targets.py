@@ -3,6 +3,7 @@ import math
 from torch import nn
 
 from pvrcnn.ops import box_iou_rotated, Matcher
+from .anchor_generator import AnchorGenerator
 
 
 class ProposalTargetAssigner(nn.Module):
@@ -11,10 +12,10 @@ class ProposalTargetAssigner(nn.Module):
     TODO: Make this run faster if possible.
     """
 
-    def __init__(self, cfg, anchors):
+    def __init__(self, cfg):
         super(ProposalTargetAssigner, self).__init__()
         self.cfg = cfg
-        self.anchors = anchors.cuda()
+        self.anchors = AnchorGenerator(cfg).anchors.cuda()
         self.matchers = self.build_matchers(cfg)
 
     def build_matchers(self, cfg):
@@ -65,25 +66,33 @@ class ProposalTargetAssigner(nn.Module):
         G_reg = torch.zeros_like(self.anchors).masked_scatter_(M_reg, G_reg)
         return G_reg, M_reg
 
-    def get_matches(self, boxes, class_idx):
+    def match_class_i(self, boxes, class_idx, full_idx, i):
+        class_mask = class_idx == i
+        anchors = self.anchors[i].view(-1, self.cfg.BOX_DOF)
+        iou = self.compute_iou(boxes[class_mask], anchors)
+        matches, labels = self.matchers[i](iou)
+        if (class_mask).any():
+            matches = full_idx[class_mask][matches]
+        return matches, labels
+
+    def apply_ignore_mask(self, matches, labels, box_ignore):
+        """Ignore anchors matched to boxes[i] if box_ignore[i].
+        E.g., boxes containing too few lidar points."""
+        labels[box_ignore[matches] & (labels != -1)] = -1
+
+    def match_all_classes(self, boxes, class_idx, box_ignore):
         """Match boxes to anchors based on IOU."""
         full_idx = torch.arange(boxes.shape[0])
-        matches, match_labels = [], []
-        for i in range(self.cfg.NUM_CLASSES):
-            if not (class_idx == i).any():
-                continue
-            anchors_i = self.anchors[i].view(-1, self.cfg.BOX_DOF)
-            iou = self.compute_iou(boxes[class_idx == i].cuda(), anchors_i)
-            _matches, _match_labels = self.matchers[i](iou)
-            matches += [full_idx[class_idx == i][_matches]]
-            match_labels += [_match_labels]
+        classes = range(self.cfg.NUM_CLASSES)
+        matches, labels = zip(*[self.match_class_i(
+            boxes, class_idx, full_idx, i) for i in classes])
         matches = torch.stack(matches).view(self.anchors.shape[:-1])
-        match_labels = torch.stack(match_labels).view(self.anchors.shape[:-1])
-        return matches, match_labels
+        labels = torch.stack(labels).view(self.anchors.shape[:-1])
+        return matches, labels
 
     def forward(self, item):
-        boxes, class_idx = item['boxes'], item['class_idx']
-        box_idx, G_cls = self.get_matches(boxes, class_idx)
+        box_idx, G_cls = self.match_all_classes(
+            item['boxes'].cuda(), item['class_idx'], item['box_ignore'])
         G_cls, M_cls = self.get_cls_targets(G_cls)
-        G_reg, M_reg = self.get_reg_targets(boxes, box_idx, G_cls)
+        G_reg, M_reg = self.get_reg_targets(item['boxes'], box_idx, G_cls)
         item.update(dict(G_cls=G_cls, G_reg=G_reg, M_cls=M_cls, M_reg=M_reg))
