@@ -17,13 +17,22 @@ class Second(nn.Module):
         self.head = ProposalLayer(cfg)
         self.cfg = cfg
 
-    def forward(self, item):
+    def feature_extract(self, item):
         features = self.vfe(item['features'], item['occupancy'])
         features = self.cnn(features, item['coordinates'], item['batch_size'])
         features = self.rpn(features)
+        return features
+
+    def forward(self, item):
+        features = self.feature_extract(item)
         scores, boxes = self.head(features)
         item.update(dict(P_cls=scores, P_reg=boxes))
         return item
+
+    def inference(self, item):
+        features = self.feature_extract(item)
+        out = self.head.inference(features, item['anchors'])
+        return out
 
 
 class Middle(SpMiddleFHD):

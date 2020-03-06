@@ -25,6 +25,7 @@ _C.ANCHORS = [
         'wlh': [1.6, 3.9, 1.56],
         'yaw': [0, np.pi / 2],
         'iou_thresh': [0.45, 0.60],
+        'score_thresh': 0.3,
         'center_z': -1.0,
     },
     {
@@ -32,6 +33,7 @@ _C.ANCHORS = [
         'wlh': [0.6, 0.8, 1.73],
         'yaw': [0, np.pi / 2],
         'iou_thresh': [0.20, 0.35],
+        'score_thresh': 0.3,
         'center_z': -0.6,
     },
     {
@@ -39,6 +41,7 @@ _C.ANCHORS = [
         'wlh': [0.6, 1.76, 1.73],
         'yaw': [0, np.pi / 2],
         'iou_thresh': [0.20, 0.35],
+        'score_thresh': 0.3,
         'center_z': -0.6,
     },
 ]

@@ -25,6 +25,7 @@ SOFTWARE.
 """
 
 import numpy as np
+from collections import namedtuple
 
 
 def read_label(label_filename):
@@ -40,7 +41,21 @@ def read_velo(velo_filename):
 
 
 def read_calib(calib_filename):
-    return Calibration(calib_filename)
+    """Return calib as named tuple."""
+    calib = CalibObject(calib_filename).astuple
+    return calib
+
+
+def filter_camera_fov(calib, points_):
+    """Takes ~3.5 ms in KITTI."""
+    keep = points_[:, 0] > 0
+    p = points_[keep, :3]
+    ones = np.ones_like(p[:, 0:1])
+    p = (calib.R0 @ calib.V2C) @ np.c_[p, ones].T
+    p = calib.P2 @ np.r_[p, ones.T]
+    p = (p / p[2:3])[:2].T
+    keep[keep] &= ((p >= 0) & (p <= calib.WH)).all(1)
+    return points_[keep]
 
 
 class Object3d:
@@ -100,25 +115,31 @@ class Object3d:
             return 4
 
 
-class Calibration(object):
+keys = ['V2C', 'C2V', 'R0', 'P2', 'WH']
+Calib = namedtuple('Calib', keys)
+
+
+class CalibObject:
     """
     3d XYZ in <label>.txt are in rect camera coord.
     Points in <lidar>.bin are in Velodyne coord.
     """
+
     def __init__(self, calib_filepath):
         calibs = self.read_calib_file(calib_filepath)
-        # Projection matrix from rect camera coord to image2 coord
-        self.P = calibs["P2"]
-        self.P = np.reshape(self.P, [3, 4])
-
-        # Rigid transform from Velodyne coord to reference camera coord
-        self.V2C = calibs["Tr_velo2cam"]
-        self.V2C = np.reshape(self.V2C, [3, 4])
+        # Rigid transform from Velodyne to reference camera
+        self.V2C = calibs["V2C"].reshape(3, 4)
+        # Inverse of above
         self.C2V = self.inverse_rigid_trans(self.V2C)
-
-        # Rotation from reference camera coord to rect camera coord
-        self.R0 = calibs["R_rect"]
-        self.R0 = np.reshape(self.R0, [3, 3])
+        # Rotation from reference camera to rect camera
+        self.R0 = calibs["R0"].reshape(3, 3)
+        # Projection matrix from rect camera to image2
+        self.P2 = calibs["P2"].reshape(3, 4)
+        # Hardcoded image shape (approximate)
+        self.WH = np.r_[1224, 370]
+        # Serializable representation
+        self.astuple = Calib(
+            self.V2C, self.C2V, self.R0, self.P2, self.WH)
 
     def read_calib_file(self, filepath):
         with open(filepath) as f:
@@ -134,8 +155,8 @@ class Calibration(object):
         transforms = dict(
             P2=P2.reshape(3, 4),
             P3=P3.reshape(3, 4),
-            R_rect=R0.reshape(3, 3),
-            Tr_velo2cam=Tr_velo_to_cam.reshape(3, 4),
+            R0=R0.reshape(3, 3),
+            V2C=Tr_velo_to_cam.reshape(3, 4),
         )
         return transforms
 

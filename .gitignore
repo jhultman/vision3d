@@ -12,9 +12,10 @@ build/*
 dist/*
 pvrcnn.egg-info/*
 
-notebooks/*
+.ipynb_checkpoints/*
 
 pvrcnn/eval/*
-pvrcnn/core/viz_detections.py
+pvrcnn/make_dataset.py
 
 images/proposals_*
+notebooks/*

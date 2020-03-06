@@ -131,3 +131,4 @@ def batched_nms_rotated(boxes, scores, idxs, iou_threshold):
     boxes_for_nms = boxes.clone()  # avoid modifying the original values in boxes
     boxes_for_nms[:, :2] += offsets[:, None]
     keep = nms_rotated(boxes_for_nms, scores, iou_threshold)
+    return keep

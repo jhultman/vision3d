@@ -6,11 +6,12 @@ ANCHORS: [{
   wlh: [1.6, 3.9, 1.56],
   yaw: [0, 1.501],
   iou_thresh: [0.45, 0.60],
+  score_thresh: 0.3,
   center_z: -1.0,
 }]
 NUM_CLASSES: 1
 TRAIN:
-  BATCH_SIZE: 5
+  BATCH_SIZE: 4
   LAMBDA: 1.0
   EPOCHS: 60
 AUG:

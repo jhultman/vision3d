@@ -2,10 +2,17 @@ import pickle
 import os.path as osp
 import numpy as np
 import torch
+from tqdm import tqdm
+from collections import defaultdict
 from itertools import compress
 
-from .database_sampler import PointsNotInRectangles
+from .kitti_utils import read_velo
 from pvrcnn.ops import box_iou_rotated
+from pvrcnn.core.geometry import (
+    points_in_convex_polygon,
+    PointsNotInRectangles,
+    PointsInCuboids,
+)
 
 
 class Augmentation:
@@ -107,6 +114,7 @@ class ScaleAugmentation(Augmentation):
 
 
 class SampleAugmentation(Augmentation):
+    """Pastes samples from database into scene."""
 
     def __init__(self, cfg):
         super(SampleAugmentation, self).__init__(cfg)
@@ -188,3 +196,48 @@ class SampleAugmentation(Augmentation):
         points, boxes, class_idx = self.cat_samples(
             samples, points, boxes, class_idx)
         return points, boxes, class_idx
+
+
+class DatabaseBuilder:
+    """Builds cached database for SampleAugmentation."""
+
+    def __init__(self, cfg, annotations):
+        self.cfg = cfg
+        self.fpath = osp.join(cfg.DATA.CACHEDIR, 'database.pkl')
+        if osp.isfile(self.fpath):
+            print(f'Found cached database: {self.fpath}')
+            return
+        self._build(annotations)
+
+    def _build(self, annotations):
+        database = defaultdict(list)
+        for item in tqdm(annotations.values(), desc='Building database'):
+            for key, val in zip(*self._process_item(item)):
+                database[key] += [val]
+        self._save_database(dict(database))
+
+    def _demean(self, points, boxes):
+        """Subtract box center (birds eye view)."""
+        _points, _boxes = [], []
+        for points_i, box_i in zip(points, boxes):
+            center, zwlhr = np.split(box_i, [2])
+            xy, zi = np.split(points_i, [2], 1)
+            _points += [np.concatenate((xy - center, zi), 1)]
+            _boxes += [np.concatenate((0 * center, zwlhr))]
+        return _points, _boxes
+
+    def _process_item(self, item):
+        """Retrieve points in each box in scene."""
+        points = read_velo(item['velo_path'])
+        class_idx, boxes = item['class_idx'], item['boxes']
+        points = PointsInCuboids(points)(boxes)
+        keep = [len(p) > self.cfg.AUG.MIN_NUM_SAMPLE_PTS for p in points]
+        class_idx, points, boxes = [
+            compress(t, keep) for t in (class_idx, points, boxes)]
+        points, boxes = self._demean(points, boxes)
+        samples = [dict(points=p, box=b) for (p, b) in zip(points, boxes)]
+        return class_idx, samples
+
+    def _save_database(self, database):
+        with open(self.fpath, 'wb') as f:
+            pickle.dump(database, f)
