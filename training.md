@@ -1,4 +1,4 @@
-## Training instructions (details coming soon)
+## Training instructions
 
 ## Some Comments
 1. Currently support training only proposal stage.
@@ -12,7 +12,6 @@ Some comments:
 - Note that these results are cherry-picked.
 - Trained for 11 epochs using `car.yaml` model.
 - Training proposal layer takes about 10 minutes per epoch.
-- I will release the full inference code to generate these visualization shortly. (Need to clean up the code first.)
 
 ![Sample proposals](images/proposals_001929.png)
 ![Sample proposals](images/proposals_000711.png)

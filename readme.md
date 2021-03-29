@@ -7,15 +7,19 @@ A clean, easy-to-use PyTorch library for lidar perception. Currently supports SE
 - Hope to reproduce state-of-the-art results.
 
 ## Status and plans
-- At this time I do not have ability to further develop this project. Community support is welcomed.
+- At this time I do not have capacity to develop this project. Community support is welcomed.
 - I hope this project can serve as useful starting point for lidar perception research.
 - Implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192) is work-in-progress.
+- These forks ([one](https://github.com/muzi2045/PV-RCNN), [two](https://github.com/eraofelix/PV-RCNN)) have shown some promise in training on other datasets (NuScenes, and proprietary lidar data).
 
 ## Usage
-See [inference.py](vision3d/inference.py).
+See [inference.py](vision3d/inference.py) and [train.py](vision3d/train.py). To train, need to first start a visdom server using command `visdom` to enable train loss monitoring. (Requires visdom python package to be installed).
 
 ## Installation
 See [install.md](install.md).
+
+## Preliminary results
+![Sample result](/images/sample-result.png)
 
 ## Citing
 If you find this work helpful in your research, please consider starring this repo and citing:
