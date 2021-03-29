@@ -3,8 +3,8 @@ import math
 from torch import nn
 import torch.nn.functional as F
 
-from pvrcnn.ops import sigmoid_focal_loss, batched_nms_rotated
-from pvrcnn.core.box_encode import decode
+from vision3d.ops import sigmoid_focal_loss, batched_nms_rotated
+from vision3d.core.box_encode import decode
 
 
 class ProposalLayer(nn.Module):

@@ -5,9 +5,9 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 import multiprocessing
 
-from pvrcnn.detector import ProposalLoss, PV_RCNN, Second
-from pvrcnn.core import cfg, TrainPreprocessor, VisdomLinePlotter
-from pvrcnn.dataset import KittiDatasetTrain
+from vision3d.detector import ProposalLoss, PV_RCNN, Second
+from vision3d.core import cfg, TrainPreprocessor, VisdomLinePlotter
+from vision3d.dataset import KittiDatasetTrain
 
 
 def build_train_dataloader(cfg, preprocessor):

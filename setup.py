@@ -16,7 +16,7 @@ assert torch_ver >= [1, 3], "Requires PyTorch >= 1.3"
 
 def get_extensions():
     this_dir = path.dirname(path.abspath(__file__))
-    extensions_dir = path.join(this_dir, "pvrcnn", "ops", "csrc")
+    extensions_dir = path.join(this_dir, "vision3d", "ops", "csrc")
 
     main_source = path.join(extensions_dir, "vision.cpp")
     sources = glob.glob(path.join(extensions_dir, "**", "*.cpp"))
@@ -50,7 +50,7 @@ def get_extensions():
 
     ext_modules = [
         extension(
-            "pvrcnn._C",
+            "vision3d._C",
             sources,
             include_dirs=include_dirs,
             define_macros=define_macros,
@@ -63,12 +63,12 @@ def get_extensions():
 
 if __name__ == '__main__':
     setup(
-        name='pvrcnn',
+        name='vision3d',
         version='0.1',
         description='Implementation of PV-RCNN algorithm',
         author='Jacob Hultman',
         packages=find_packages(),
-        package_data={'pvrcnn.ops': ['*/*.so']},
+        package_data={'vision3d.ops': ['*/*.so']},
         install_requires=[
             'numpy', 'torch', 'yacs', 'tqdm', 'spconv', 'pointnet2', 'torchsearchsorted'],
         ext_modules=get_extensions(),

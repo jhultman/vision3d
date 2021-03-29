@@ -2,9 +2,9 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
-from pvrcnn.core import cfg, Preprocessor, AnchorGenerator
-from pvrcnn.core.bev_drawer import Drawer
-from pvrcnn.detector import Second
+from vision3d.core import cfg, Preprocessor, AnchorGenerator
+from vision3d.core.bev_drawer import Drawer
+from vision3d.detector import Second
 
 
 def viz_detections(points, boxes):
@@ -22,7 +22,7 @@ def get_model(cfg):
     anchors = AnchorGenerator(cfg).anchors
     preprocessor = Preprocessor(cfg)
     model = Second(cfg).cuda().eval()
-    ckpt = torch.load('../pvrcnn/ckpts/epoch_12.pth')['state_dict']
+    ckpt = torch.load('../vision3d/ckpts/epoch_12.pth')['state_dict']
     model.load_state_dict(ckpt, strict=True)
     return model, preprocessor, anchors
 

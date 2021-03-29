@@ -7,7 +7,7 @@ from copy import deepcopy
 import os.path as osp
 from torch.utils.data import Dataset
 
-from pvrcnn.core import ProposalTargetAssigner
+from vision3d.core import ProposalTargetAssigner
 from .kitti_utils import read_calib, read_label, read_velo, filter_camera_fov
 from .augmentation import ChainedAugmentation, DatabaseBuilder
 

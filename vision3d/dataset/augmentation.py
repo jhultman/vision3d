@@ -7,8 +7,8 @@ from collections import defaultdict
 from itertools import compress
 
 from .kitti_utils import read_velo
-from pvrcnn.ops import box_iou_rotated
-from pvrcnn.core.geometry import (
+from vision3d.ops import box_iou_rotated
+from vision3d.core.geometry import (
     points_in_convex_polygon,
     PointsNotInRectangles,
     PointsInCuboids,

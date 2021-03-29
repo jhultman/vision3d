@@ -2,7 +2,7 @@ import torch
 import math
 from torch import nn
 
-from pvrcnn.ops import box_iou_rotated, Matcher
+from vision3d.ops import box_iou_rotated, Matcher
 from .anchor_generator import AnchorGenerator
 from .box_encode import encode
 
