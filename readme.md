@@ -25,7 +25,7 @@ See [install.md](install.md).
 If you find this work helpful in your research, please consider starring this repo and citing:
 
 ```
-@article{pvrcnnpytorch,
+@article{hultman2020vision3d,
   author={Jacob Hultman},
   title={vision3d},
   journal={https://github.com/jhultman/vision3d},
