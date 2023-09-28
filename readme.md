@@ -7,7 +7,7 @@ A clean, easy-to-use PyTorch library for lidar perception.
 
 ## Status
 - This project is not under active development.
-- Implementation oF SECOND is complete.
+- Implementation of SECOND is complete.
 - Implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192) is partially completed.
 - These forks ([one](https://github.com/muzi2045/PV-RCNN), [two](https://github.com/eraofelix/PV-RCNN)) have shown some promise in training on other datasets (NuScenes, and proprietary lidar data).
 
