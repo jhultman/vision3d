@@ -1,5 +1,5 @@
 # Vision 3D
-A clean, easy-to-use PyTorch library for lidar perception. Currently supports SECOND detector.
+A clean, easy-to-use PyTorch library for lidar perception.
 
 ## Project goals
 - Emphasis on clean code (no 1,000 LOC functions).
@@ -7,6 +7,7 @@ A clean, easy-to-use PyTorch library for lidar perception. Currently supports SE
 
 ## Status
 - This project is not under active development.
+- Implementation oF SECOND is complete.
 - Implementation of [PV-RCNN](https://arxiv.org/pdf/1912.13192) is partially completed.
 - These forks ([one](https://github.com/muzi2045/PV-RCNN), [two](https://github.com/eraofelix/PV-RCNN)) have shown some promise in training on other datasets (NuScenes, and proprietary lidar data).
 
